@@ -1,0 +1,7 @@
+
+let testVar : Int = 4;
+
+let main := fn ()
+{
+	var v : Int = testVar;
+}
