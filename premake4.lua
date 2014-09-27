@@ -13,15 +13,9 @@ solution "proto-gamelang"
   project "app"
     kind "ConsoleApp"
     language "C++"
-
     files { "./src/**.hpp", "./src/**.cpp", "./src/**.tpp" }
-
     includedirs { "./src/" }
-    libdirs { }
-    vpaths { ["*"] = "./src/**" }
-
-    links { "ortools",
-             "stdc++" }
+    links { "stdc++" }
     buildoptions { "-std=c++11" }
 
   configuration "debug"
