@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "ast.hpp"
+#include "codegen.hpp"
 #include "token.hpp"
 
 int main(int argc, const char* argv[])
@@ -18,5 +19,8 @@ int main(int argc, const char* argv[])
 	}
 
 	std::cout << "*** AST ***\n";
-	gamelang::generateAst(tokens);
+	auto&& ast= gamelang::genAst(tokens);
+
+	std::cout << "*** C ***\n";
+	std::cout << gamelang::genC(ast);
 }

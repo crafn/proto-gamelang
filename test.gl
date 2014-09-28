@@ -1,4 +1,1 @@
-let main := fn ()
-{
-	let value : Int;
-}
+let value : int = 5;
