@@ -1,5 +1,6 @@
 #include <iostream>
 
+#include "ast.hpp"
 #include "token.hpp"
 
 int main(int argc, const char* argv[])
@@ -9,7 +10,13 @@ int main(int argc, const char* argv[])
 
 	const char* filepath= argv[1];
 	std::cout << "file: " << filepath << std::endl;
-	for (auto&& token : gamelang::tokenize(filepath)) {
+
+	std::cout << "*** Tokens ***\n";
+	auto&& tokens= gamelang::tokenize(filepath);
+	for (auto&& token : tokens) {
 		std::cout << token.text << "\t" << str(token.type) << std::endl;
 	}
+
+	std::cout << "*** AST ***\n";
+	gamelang::generateAst(tokens);
 }

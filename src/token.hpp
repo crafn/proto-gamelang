@@ -39,7 +39,7 @@ bool identifierChar(char ch)
 }
 
 /// true if str looks like an identifier (like_this236)
-/// @todo 111 shouldn't be an identifier
+/// @todo 111ab shouldn't be an identifier
 bool identifier(const std::string& str)
 {
 	for (auto&& ch : str) {
@@ -54,7 +54,7 @@ enum class TokenType {
 	number, // 2538
 	assign, // =
 	declaration, // :
-	exprEnd, // ;
+	endStatement, // ;
 	openParen, // (
 	closeParen, // )
 	openBlock, // {
@@ -71,7 +71,7 @@ std::string str(TokenType type)
 		case TokenType::number: return "number";
 		case TokenType::assign: return "assign";
 		case TokenType::declaration: return "declaration";
-		case TokenType::exprEnd: return "exprEnd";
+		case TokenType::endStatement: return "endStatement";
 		case TokenType::openParen: return "openParen";
 		case TokenType::closeParen: return "closeParen";
 		case TokenType::openBlock: return "openBlock";
@@ -93,7 +93,7 @@ TokenType singleCharTokenType(char ch)
 	switch (ch) {
 		case '=': return TokenType::assign;
 		case ':': return TokenType::declaration;
-		case ';': return TokenType::exprEnd;
+		case ';': return TokenType::endStatement;
 		case '(': return TokenType::openParen;
 		case ')': return TokenType::closeParen;
 		case '{': return TokenType::openBlock;
