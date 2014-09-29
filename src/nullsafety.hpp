@@ -1,15 +1,15 @@
-#ifndef NULLSAFETY_HPP
-#define NULLSAFETY_HPP
+#ifndef GAMELANG_NULLSAFETY_HPP
+#define GAMELANG_NULLSAFETY_HPP
 
 #include <cassert>
 
-#define NONULL(x) gamelang::detail::noNullPassesThrough(x)
+#define NONULL(x) gamelang::detail::noNullPassThrough(x)
 
 namespace gamelang {
 namespace detail {
 
 template <typename T>
-T noNullPassesThrough(T ptr)
+T noNullPassThrough(T ptr)
 {
 	assert(ptr && "Illegal nullptr");
 	return ptr;
@@ -18,4 +18,4 @@ T noNullPassesThrough(T ptr)
 } // detail
 } // gamelang
 
-#endif // NULLSAFETY_HPP
+#endif // GAMELANG_NULLSAFETY_HPP
