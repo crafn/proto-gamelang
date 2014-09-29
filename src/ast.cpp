@@ -69,7 +69,15 @@ struct Parser {
 		auto&& log_indent= logIndentGuard();
 
 		auto var= newNode<VarDeclNode>();
-		nextToken(tok); // Skip "let"
+		parseCheck(tok->type == TokenType::identifier, "Expected identifier");
+		if (tok->text == "var") {
+			var->constant= false;
+		} else if (tok->text == "let") {
+			var->constant= true;
+		} else {
+			parseCheck(false, "Expected var/let");
+		}
+		nextToken(tok);
 
 		parseCheck(tok->type == TokenType::identifier, "Error in var decl name");
 		var->name= tok->text;
@@ -162,7 +170,7 @@ struct Parser {
 	AstNode* parseExpr(It& tok)
 	{
 		if (tok->type == TokenType::identifier) {
-			if (tok->text == "let") {
+			if (tok->text == "let" || tok->text == "var") {
 				return parseVarDecl(tok);
 			} else if (tok->text == "fn") {
 				auto func_type_node= parseFuncType(tok);

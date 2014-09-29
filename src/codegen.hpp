@@ -8,7 +8,7 @@
 namespace gamelang
 {
 
-std::string genC(const AstContext& ctx);
+std::string genC(AstContext& ctx);
 
 } // gamelang
 

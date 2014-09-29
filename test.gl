@@ -2,11 +2,7 @@ let value : int;
 let other : int = 5;
 let main := fn () -> int
 {
-	let local : long = 0;
-
-	let closure := fn ()
-	{
-	}
+	var local : long = 0;
 }
 
 let foo : fn () -> void = { }

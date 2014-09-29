@@ -67,7 +67,11 @@ struct CCodeGen {
 		} else {
 			// Variable
 			gen(*var.valueType);
+			if (var.constant)
+				emit(" const");
+
 			emit(" " + var.name);
+
 			if (var.value) {
 				emit("= ");
 				gen(*var.value);
@@ -124,7 +128,7 @@ struct CCodeGen {
 
 } // anonymous
 
-std::string genC(const AstContext& ctx)
+std::string genC(AstContext& ctx)
 {
 	assert(!ctx.nodes.empty());
 	assert(ctx.nodes.front());

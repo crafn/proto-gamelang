@@ -113,7 +113,7 @@ Tokens tokenize(const char* filepath)
 	}
 	{ // Tokenize
 		char* next= contents;
-		char* tok_start= contents;
+		char* tok_begin= contents;
 		char const* end= contents + contents_size;
 		auto commit= [&tokens] (char* b, char* e)
 		{
@@ -124,29 +124,26 @@ Tokens tokenize(const char* filepath)
 			}
 		};
 
-		while (next < end) {
-			char next_ch= *next;
-
-			if (identifierChar(next_ch)) {
+		while (next < end && tok_begin < end) {
+			if (identifierChar(*next)) {
 				++next;
 				continue;
 			}
 
-			if (whitespace(next_ch)) {
-				commit(tok_start, next);
-				tok_start= next + 1;
+			if (whitespace(*next)) {
+				commit(tok_begin, next);
+				tok_begin= next + 1;
 			} else {
-				if (doubleCharTokenType(tok_start[0], tok_start[1]) !=
+				if (doubleCharTokenType(tok_begin[0], tok_begin[1]) !=
 						TokenType::unknown) {
-					commit(tok_start, tok_start + 2);
-					tok_start= tok_start + 2;
+					commit(tok_begin, tok_begin + 2);
+					tok_begin= tok_begin + 2;
 					++next;
 				} else {
-					commit(tok_start, next);
-					tok_start= next;
+					commit(tok_begin, next);
+					tok_begin= next;
 				}
 			}
-
 			++next;
 		}
 	}
