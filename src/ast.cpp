@@ -287,6 +287,18 @@ struct Parser {
 
 } // anonymous
 
+bool containsEndStatement(const AstNode& node)
+{
+	if (node.endStatement)
+		return true;
+
+	for (auto&& sub : node.getSubNodes()) {
+		assert(sub);
+		if (containsEndStatement(*sub))
+			return true;
+	}
+}
+
 AstContext genAst(const Tokens& tokens)
 {
 	Parser parser{tokens};

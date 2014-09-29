@@ -39,12 +39,20 @@ struct CCodeGen {
 	{
 		emit("\n");
 		emit("{\n");
-		for (const AstNode* node : block.nodes) {
-			auto&& indent_guard= indentGuard();
+		{ auto&& indent_guard= indentGuard();
+			for (std::size_t i= 0; i < block.nodes.size(); ++i) {
+				AstNode* node= block.nodes[i];
+				assert(node);
 
-			assert(node);
-			gen(*node);
-			emit(";\n");
+				if (	block.functionType && i + 1 == block.nodes.size() &&
+						!containsEndStatement(*node)) {
+					// Implicit return
+					emit("return ");
+				}
+
+				gen(*node);
+				emit(";\n");
+			}
 		}
 		emit("}");
 	}

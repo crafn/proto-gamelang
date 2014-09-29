@@ -37,73 +37,85 @@ struct AstNode {
 	bool endStatement= false;
 
 	AstNode(AstNodeType t): type(t) {}
+	virtual std::vector<AstNode*> getSubNodes() const { return {}; }
 };
 
-struct GlobalNode : AstNode {
+struct GlobalNode final : AstNode {
 	std::vector<AstNode*> nodes;
 
 	GlobalNode(): AstNode(AstNodeType::global) {}
+	std::vector<AstNode*> getSubNodes() const override { return nodes; }
 };
 
-struct BlockNode : AstNode {
+struct BlockNode final : AstNode {
 	bool structure= false;
 	AstNode* functionType;
 	std::vector<AstNode*> nodes;
 
 	BlockNode(): AstNode(AstNodeType::block) {}
+	std::vector<AstNode*> getSubNodes() const override { return nodes; }
 };
 
-struct VarDeclNode : AstNode {
+struct VarDeclNode final : AstNode {
 	bool constant= true;
 	std::string name;
 	AstNode* valueType= nullptr;
 	AstNode* value= nullptr;
 
 	VarDeclNode(): AstNode(AstNodeType::varDecl) {}
+	std::vector<AstNode*> getSubNodes() const override { return {valueType, value}; }
 };
 
-struct IdentifierNode : AstNode {
+struct IdentifierNode final : AstNode {
 	std::string name;
 
 	IdentifierNode(): AstNode(AstNodeType::identifier) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
-struct FuncTypeNode : AstNode {
+struct FuncTypeNode final : AstNode {
 	AstNode* returnType= nullptr;
 
 	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
+	std::vector<AstNode*> getSubNodes() const override { return {returnType}; }
 };
 
-struct NumLiteralNode : AstNode {
+struct NumLiteralNode final : AstNode {
 	std::string value;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
-struct ReturnNode : AstNode {
+struct ReturnNode final : AstNode {
 	AstNode* value= nullptr;
 
 	ReturnNode(): AstNode(AstNodeType::ret) {}
+	std::vector<AstNode*> getSubNodes() const override { return {value}; }
 };
 
-struct CallNode : AstNode {
+struct CallNode final : AstNode {
 	AstNode* function;
 	std::vector<AstNode*> params;
 
 	CallNode(): AstNode(AstNodeType::call) {}
+	std::vector<AstNode*> getSubNodes() const override
+	{ auto ret= params; ret.push_back(function); return ret; }
 };
 
 /// TokenType contains all needed values
 using BiOpType= TokenType;
 
-struct BiOpNode : AstNode {
+struct BiOpNode final : AstNode {
 	AstNode* lhs= nullptr;
 	AstNode* rhs= nullptr;
 	BiOpType opType;
 
 	BiOpNode(): AstNode(AstNodeType::biOp) {}
+	std::vector<AstNode*> getSubNodes() const override { return {lhs, rhs}; }
 };
 
+bool containsEndStatement(const AstNode& node);
 AstContext genAst(const Tokens& tokens);
 
 } // gamelang
