@@ -314,38 +314,23 @@ struct Parser {
 			return parseRestExpr(call, tok, greedy);
 		}
 
-		/// @todo Remove duplicate code
-		if (greedy && tok->type == TokenType::assign) {
-			nextToken(tok);
-			auto op= newNode<BiOpNode>();
-			op->opType= BiOpType::assign;
-			op->lhs= beginning;
-			op->rhs= parseExpr(tok);
-			return op;
-		}
-		if (greedy && tok->type == TokenType::add) {
-			nextToken(tok);
-			auto op= newNode<BiOpNode>();
-			op->opType= BiOpType::add;
-			op->lhs= beginning;
-			op->rhs= parseExpr(tok);
-			return op;
-		}
-		if (greedy && tok->type == TokenType::sub) {
-			nextToken(tok);
-			auto op= newNode<BiOpNode>();
-			op->opType= BiOpType::sub;
-			op->lhs= beginning;
-			op->rhs= parseExpr(tok);
-			return op;
-		}
-		if (greedy && tok->type == TokenType::equals) {
-			nextToken(tok);
-			auto op= newNode<BiOpNode>();
-			op->opType= BiOpType::equals;
-			op->lhs= beginning;
-			op->rhs= parseExpr(tok);
-			return op;
+		if (greedy) {
+			switch (tok->type) {
+				case TokenType::assign:
+				case TokenType::add:
+				case TokenType::sub:
+				case TokenType::equals:
+				{
+					auto op_type= tok->type;
+					nextToken(tok);
+					auto op= newNode<BiOpNode>();
+					op->opType= op_type;
+					op->lhs= beginning;
+					op->rhs= parseExpr(tok);
+					return op;
+				}
+				default:;
+			}
 		}
 		return beginning;
 	}
