@@ -59,9 +59,10 @@ struct Parser {
 	{
 		if (thing.type == AstNodeType::block) {
 			const BlockNode& block= static_cast<const BlockNode&>(thing);
-			if (block.funcType) {
+			if (block.structure)
+				return newNode<StructTypeNode>();
+			if (block.funcType)
 				return block.funcType;
-			}
 		}
 
 		assert(0 && "@todo deduction");
@@ -262,8 +263,14 @@ struct Parser {
 				}
 			} else if (tok->text == "if") {
 				auto expr= parseIfExpr(tok);
+				/// @todo Implicit block
 				auto block= parseBlock(tok);
 				block->condition= expr;
+				return block;
+			} else if (tok->text == "struct") {
+				nextToken(tok);
+				auto block= parseBlock(tok);
+				block->structure= true;
 				return block;
 			} else if (tok->text == "return") {
 				return parseReturn(tok);

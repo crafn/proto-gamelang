@@ -67,14 +67,15 @@ struct CCodeGen {
 		auto& value_type= *NONULL(var.valueType);
 		
 		if (value_type.type == AstNodeType::funcType) {
-			// Function
 			assert(var.constant && "@todo Non-constant func vars");
 			genFuncProto(value_type, var.name);
-
-			if (var.value) {
-				// Block
-				gen(*var.value);
-			}
+			if (var.value)
+				gen(*var.value); // Block
+		} else if (value_type.type == AstNodeType::structType) {
+			assert(var.constant && "Non-constant struct var");
+			emit("typedef struct ");
+			gen(*NONULL(var.value)); // Block
+			emit(" " + var.name);
 		} else {
 			// Variable
 			gen(value_type);

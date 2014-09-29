@@ -23,6 +23,7 @@ enum class AstNodeType {
 	identifier,
 	paramDecl,
 	funcType,
+	structType,
 	numLiteral,
 	biOp,
 	ret,
@@ -35,7 +36,7 @@ struct AstNode {
 	bool endStatement= false;
 
 	AstNode(AstNodeType t): type(t) {}
-	virtual std::vector<AstNode*> getSubNodes() const { return {}; }
+	virtual std::vector<AstNode*> getSubNodes() const = 0;
 };
 
 struct GlobalNode final : AstNode {
@@ -98,6 +99,11 @@ struct FuncTypeNode final : AstNode {
 			ret.push_back(p);
 		return ret;
 	}
+};
+
+struct StructTypeNode final : AstNode {
+	StructTypeNode(): AstNode(AstNodeType::structType) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
 struct NumLiteralNode final : AstNode {
