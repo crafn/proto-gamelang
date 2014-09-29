@@ -82,7 +82,6 @@ struct Parser {
 		if (tok->type == TokenType::identifier) { // Explicit type
 			log(":");
 			var->valueType= parseExpr(tok);
-			nextToken(tok);
 		}
 		
 		if (tok->type == TokenType::endStatement) {
@@ -99,8 +98,7 @@ struct Parser {
 				var->valueType= deducedType(*var->value);
 		} 
 
-		if (tok->type == TokenType::endStatement)
-			advance(tok);
+		advance(tok);
 
 		return std::move(var);
 	}
@@ -124,7 +122,6 @@ struct Parser {
 		if (tok->type == TokenType::yields) {
 			nextToken(tok);
 			func_type->returnType= parseExpr(tok);
-			nextToken(tok);
 		} else {
 			/// @todo Implicit return type
 			auto return_type= newNode<IdentifierNode>();
@@ -140,6 +137,7 @@ struct Parser {
 		log("parseBlock");
 		auto&& log_indent= logIndentGuard();
 
+		parseCheck(tok->type == TokenType::openBlock, "Missing {");
 		nextToken(tok); // Skip "{"
 
 		auto block= newNode<BlockNode>();
@@ -147,7 +145,6 @@ struct Parser {
 			block->nodes.emplace_back(parseExpr(tok));
 		}
 
-		advance(tok); // Jump over "{"
 		return std::move(block);
 	}
 
@@ -170,21 +167,22 @@ struct Parser {
 			} else if (tok->text == "fn") {
 				auto func_type_node= parseFuncType(tok);
 				/// @todo Other block properties
-				if (tok->type == TokenType::endStatement) {
+				if (tok->type != TokenType::openBlock) {
 					return std::move(func_type_node);
-				} else if (tok->type == TokenType::openBlock) {
+				} else {
 					auto block= parseBlock(tok);
 					block->functionType= std::move(func_type_node);
 					return std::move(block);
-				} else {
-					parseCheck(false, "Rubbish after function type");
 				}
 			} else {
 				auto type= newNode<IdentifierNode>();
 				type->name= tok->text;
 				log(type->name);
+				nextToken(tok);
 				return std::move(type);
 			}
+		} else if (tok->type == TokenType::openBlock) {
+			return parseBlock(tok);
 		} else if (tok->type == TokenType::number) {
 			return parseNumLiteral(tok);
 		}

@@ -4,3 +4,5 @@ let main := fn () -> int
 {
 	let local : long = 0;
 }
+
+let foo : fn () -> void = { }
