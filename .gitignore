@@ -26,3 +26,16 @@
 *.exe
 *.out
 *.app
+
+# Backup & temp files
+*.swp
+*.swo
+*~
+
+# Build
+Makefile
+*.make
+debug/
+dev/
+release/
+obj/
