@@ -31,7 +31,7 @@ struct CCodeGen {
 		for (const AstNode* node : global.nodes) {
 			assert(node);
 			gen(*node);
-			emit("\n");
+			emit(";\n");
 		}
 	}
 
@@ -44,7 +44,7 @@ struct CCodeGen {
 
 			assert(node);
 			gen(*node);
-			emit("\n");
+			emit(";\n");
 		}
 		emit("}");
 	}
@@ -61,8 +61,6 @@ struct CCodeGen {
 			if (var.value) {
 				// Block
 				gen(*var.value);
-			} else {
-				emit(";");
 			}
 		} else {
 			// Variable
@@ -73,10 +71,9 @@ struct CCodeGen {
 			emit(" " + var.name);
 
 			if (var.value) {
-				emit("= ");
+				emit(" = ");
 				gen(*var.value);
 			}
-			emit(";");
 		}
 	}
 
@@ -104,6 +101,16 @@ struct CCodeGen {
 		emit(literal.value);
 	}
 
+	void gen(const BiOpNode& op)
+	{
+		assert(op.lhs);
+		assert(op.rhs);
+
+		gen(*op.lhs);
+		emit(" " + std::string(str(op.opType)) + " ");
+		gen(*op.rhs);
+	}
+
 	template <AstNodeType nodeType, typename T>
 	struct CondGen {
 		static void eval(CCodeGen& self, const AstNode& node)
@@ -116,12 +123,12 @@ struct CCodeGen {
 
 	void gen(const AstNode& node)
 	{
-		std::string str;
 		CondGen<AstNodeType::global,     GlobalNode>::eval(*this, node);
 		CondGen<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
+		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
 	}
 
 };

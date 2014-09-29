@@ -25,11 +25,14 @@ enum class AstNodeType {
 	varDecl,
 	identifier,
 	funcType,
-	numLiteral
+	numLiteral,
+	biOp
 };
 
 struct AstNode {
 	AstNodeType type;
+	/// true if node has `;` immediately after it
+	bool endStatement= false;
 
 	AstNode(AstNodeType t): type(t) {}
 };
@@ -64,7 +67,7 @@ struct IdentifierNode : AstNode {
 };
 
 struct FuncTypeNode : AstNode {
-	AstNode* returnType;
+	AstNode* returnType= nullptr;
 
 	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
 };
@@ -73,6 +76,17 @@ struct NumLiteralNode : AstNode {
 	std::string value;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
+};
+
+/// TokenType contains all needed values
+using BiOpType= TokenType;
+
+struct BiOpNode : AstNode {
+	AstNode* lhs= nullptr;
+	AstNode* rhs= nullptr;
+	BiOpType opType;
+
+	BiOpNode(): AstNode(AstNodeType::biOp) {}
 };
 
 AstContext genAst(const Tokens& tokens);

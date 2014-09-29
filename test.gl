@@ -1,8 +1,10 @@
-let value : int;
 let other : int = 5;
+let value : int;
 let main := fn () -> int
 {
 	var local : long = 0;
+	local = 1337;
+
+	var b : long = local + 1;
 }
 
-let foo : fn () -> void = { }

@@ -23,7 +23,7 @@ struct Parser {
 		return static_cast<T*>(context.nodes.back().get());
 	}
 
-	void parseCheck(bool expr, const char* msg)
+	void parseCheck(bool expr, const std::string& msg)
 	{ if (!expr) log(msg); assert(expr); }
 
 	void log(const Str& str)
@@ -89,13 +89,11 @@ struct Parser {
 
 		if (tok->type == TokenType::identifier) { // Explicit type
 			log(":");
-			var->valueType= parseExpr(tok);
+			var->valueType= parseExpr(tok, false);
 		}
-		
-		if (tok->type == TokenType::endStatement) {
-			advance(tok);
-			return std::move(var);
-		}
+
+		if (var->valueType && var->valueType->endStatement) 
+			return var;
 
 		if (tok->type == TokenType::assign) {
 			log("=");
@@ -104,11 +102,9 @@ struct Parser {
 
 			if (!var->valueType) // Deduce implicit type
 				var->valueType= deducedType(*var->value);
-		} 
+		}
 
-		advance(tok);
-
-		return std::move(var);
+		return var;
 	}
 
 	FuncTypeNode* parseFuncType(It& tok)
@@ -127,7 +123,7 @@ struct Parser {
 		parseCheck(tok->type == TokenType::closeParen, "Missing ) in fn type");	
 		nextToken(tok);
 
-		if (tok->type == TokenType::yields) {
+		if (!func_type->endStatement && tok->type == TokenType::yields) {
 			nextToken(tok);
 			func_type->returnType= parseExpr(tok);
 		} else {
@@ -137,7 +133,7 @@ struct Parser {
 			func_type->returnType= std::move(return_type);
 		}
 
-		return std::move(func_type);
+		return func_type;
 	}
 
 	BlockNode* parseBlock(It& tok)
@@ -153,7 +149,9 @@ struct Parser {
 			block->nodes.emplace_back(parseExpr(tok));
 		}
 
-		return std::move(block);
+		advance(tok);
+
+		return block;
 	}
 
 	NumLiteralNode* parseNumLiteral(It& tok)
@@ -161,14 +159,26 @@ struct Parser {
 		auto literal= newNode<NumLiteralNode>();
 		literal->value= tok->text;
 		log(literal->value);
-
 		nextToken(tok);
-
-		return std::move(literal);
+		return literal;
 	}
 
-	AstNode* parseExpr(It& tok)
+	IdentifierNode* parseIdentifier(It& tok)
 	{
+		auto type= newNode<IdentifierNode>();
+		type->name= tok->text;
+		log(type->name);
+		nextToken(tok);
+		return type;
+	}
+
+	/// greedy: parse as much as possible
+	///   e.g. `(stuff + 2) = 5;` -> whole statement is parsed
+	/// non-greedy: parse first full sub-statement
+	///   e.g. `(stuff + 2) = 5;` -> only `(stuff + 2)` is parsed
+	AstNode* parseExpr(It& tok, bool greedy= true)
+	{
+		//log("parseExpr " + tok->text);
 		if (tok->type == TokenType::identifier) {
 			if (tok->text == "let" || tok->text == "var") {
 				return parseVarDecl(tok);
@@ -183,28 +193,53 @@ struct Parser {
 					return std::move(block);
 				}
 			} else {
-				auto type= newNode<IdentifierNode>();
-				type->name= tok->text;
-				log(type->name);
-				nextToken(tok);
-				return std::move(type);
+				return parseRestExpr(parseIdentifier(tok), tok, greedy);
 			}
 		} else if (tok->type == TokenType::openBlock) {
 			return parseBlock(tok);
 		} else if (tok->type == TokenType::number) {
-			return parseNumLiteral(tok);
+			return parseRestExpr(parseNumLiteral(tok), tok, greedy);
 		}
 
-		parseCheck(false, "Broken expression");
+		parseCheck(false, "Broken expression at " + tok->text);
+	}
+
+	AstNode* parseRestExpr(AstNode* beginning, It& tok, bool greedy)
+	{
+		//log("parseRestExpr " + tok->text + " " + str(tok->type));
+		if (tok->type == TokenType::endStatement) {
+			advance(tok);
+			beginning->endStatement= true;
+			return beginning;
+		}
+		
+		if (greedy && tok->type == TokenType::assign) {
+			nextToken(tok);
+			auto&& op= newNode<BiOpNode>();
+			op->opType= BiOpType::assign;
+			op->lhs= beginning;
+			op->rhs= parseExpr(tok);
+			return op;
+		}
+		if (greedy && tok->type == TokenType::add) {
+			nextToken(tok);
+			auto&& op= newNode<BiOpNode>();
+			op->opType= BiOpType::add;
+			op->lhs= beginning;
+			op->rhs= parseExpr(tok);
+			return op;
+		}
+
+		return beginning;
 	}
 
 	AstContext parse()
 	{
 		// Start parsing
 		auto root= newNode<GlobalNode>();
-		auto it= tokens.begin();
-		while (it != tokens.end()) {
-			root->nodes.emplace_back(parseExpr(it));
+		auto tok= tokens.begin();
+		while (tok != tokens.end()) {
+			root->nodes.emplace_back(parseExpr(tok));
 		}
 		return std::move(context);
 	}

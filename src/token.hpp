@@ -23,10 +23,11 @@ enum class TokenType {
 	closeSquare, // ]
 	yields, // ->
 	equals, // ==
+	add, // +
 	unknown
 };
 
-static std::string str(TokenType type)
+static const char* enumStr(TokenType type)
 {
 	switch (type) {
 		case TokenType::identifier: return "identifier";
@@ -42,8 +43,31 @@ static std::string str(TokenType type)
 		case TokenType::closeSquare: return "closeSquare";
 		case TokenType::yields: return "yields";
 		case TokenType::equals: return "equals";
+		case TokenType::add: return "add";
 		case TokenType::unknown:
 		default: return "unknown";
+	}
+}
+
+static const char* str(TokenType type)
+{
+	switch (type) {
+		case TokenType::identifier: return "";
+		case TokenType::number: return "";
+		case TokenType::assign: return "=";
+		case TokenType::declaration: return "";
+		case TokenType::endStatement: return ";";
+		case TokenType::openParen: return "(";
+		case TokenType::closeParen: return ")";
+		case TokenType::openBlock: return "{";
+		case TokenType::closeBlock: return "}";
+		case TokenType::openSquare: return "[";
+		case TokenType::closeSquare: return "]";
+		case TokenType::yields: return "->";
+		case TokenType::equals: return "==";
+		case TokenType::add: return "+";
+		case TokenType::unknown:
+		default: return "???";
 	}
 }
 
