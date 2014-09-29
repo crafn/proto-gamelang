@@ -39,11 +39,11 @@ struct CCodeGen {
 	{
 		auto&& indent_guard= indentGuard();
 
-		emit("\n{\n");
+		emit("\n{");
 		for (const AstNode* node : block.nodes) {
+			emit("\n");
 			assert(node);
 			gen(*node);
-			emit("\n");
 		}
 		emit("\n}");
 	}

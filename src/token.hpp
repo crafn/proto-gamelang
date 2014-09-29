@@ -21,6 +21,8 @@ enum class TokenType {
 	closeBlock, // }
 	openSquare, // [
 	closeSquare, // ]
+	yields, // ->
+	equals, // ==
 	unknown
 };
 
@@ -38,6 +40,8 @@ static std::string str(TokenType type)
 		case TokenType::closeBlock: return "closeBlock";
 		case TokenType::openSquare: return "openSquare";
 		case TokenType::closeSquare: return "closeSquare";
+		case TokenType::yields: return "yields";
+		case TokenType::equals: return "equals";
 		case TokenType::unknown:
 		default: return "unknown";
 	}

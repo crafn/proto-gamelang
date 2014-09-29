@@ -34,7 +34,7 @@ bool identifierChar(char ch)
 }
 
 /// true if str looks like an identifier (like_this236)
-/// @todo 111ab shouldn't be an identifier
+/// @todo 111ab shouldn't be an identifier, or should it?
 bool identifier(const std::string& str)
 {
 	for (auto&& ch : str) {
@@ -60,10 +60,25 @@ TokenType singleCharTokenType(char ch)
 	}
 }
 
+TokenType doubleCharTokenType(char ch1, char ch2)
+{
+	if (ch1 == '-' && ch2 == '>')
+		return TokenType::yields;
+	if (ch1 == '=' && ch2 == '=')
+		return TokenType::equals;
+
+	return TokenType::unknown;
+}
+
 TokenType tokenType(const std::string& str)
 {
 	if (str.size() == 1) {
 		TokenType t= singleCharTokenType(str[0]);
+		if (t != TokenType::unknown)
+			return t;
+	}
+	if (str.size() == 2) {
+		TokenType t= doubleCharTokenType(str[0], str[1]);
 		if (t != TokenType::unknown)
 			return t;
 	}
@@ -73,11 +88,6 @@ TokenType tokenType(const std::string& str)
 		return TokenType::identifier;
 
 	return TokenType::unknown;
-}
-
-bool tokenSeparator(char ch)
-{
-	return singleCharTokenType(ch) != TokenType::unknown;
 }
 
 } // anonymous
@@ -102,29 +112,42 @@ Tokens tokenize(const char* filepath)
 		contents_size= size;
 	}
 	{ // Tokenize
-		char* cur= contents;
+		char* next= contents;
 		char* tok_start= contents;
 		char const* end= contents + contents_size;
-		auto commitToken= [&cur, &tok_start, &tokens] ()
+		auto commit= [&tokens] (char* b, char* e)
 		{
-			if (cur > tok_start) {
-				std::string text(tok_start, cur);
+			if (e > b) {
+				std::string text(b, e);
 				TokenType type= tokenType(text);
 				tokens.emplace_back(Token{type, std::move(text)});
 			}
 		};
 
-		while (cur < end) {
-			char ch= *cur;
+		while (next < end) {
+			char next_ch= *next;
 
-			if (whitespace(ch)) {
-				commitToken();		
-				tok_start= cur + 1;
-			} else if (tokenSeparator(ch)) {
-				commitToken();
-				tok_start= cur;	
+			if (identifierChar(next_ch)) {
+				++next;
+				continue;
 			}
-			++cur;
+
+			if (whitespace(next_ch)) {
+				commit(tok_start, next);
+				tok_start= next + 1;
+			} else {
+				if (doubleCharTokenType(tok_start[0], tok_start[1]) !=
+						TokenType::unknown) {
+					commit(tok_start, tok_start + 2);
+					tok_start= tok_start + 2;
+					++next;
+				} else {
+					commit(tok_start, next);
+					tok_start= next;
+				}
+			}
+
+			++next;
 		}
 	}
 	cleanup:

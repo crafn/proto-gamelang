@@ -1,6 +1,6 @@
 let value : int;
 let other : int = 5;
-let main := fn ()
+let main := fn () -> int
 {
-	let local : int = 0;
+	let local : long = 0;
 }

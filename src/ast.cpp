@@ -121,10 +121,16 @@ struct Parser {
 		parseCheck(tok->type == TokenType::closeParen, "Missing ) in fn type");	
 		nextToken(tok);
 
-		/// @todo Parse return type
-		auto return_type= newNode<IdentifierNode>();
-		return_type->name= "void";
-		func_type->returnType= std::move(return_type);
+		if (tok->type == TokenType::yields) {
+			nextToken(tok);
+			func_type->returnType= parseExpr(tok);
+			nextToken(tok);
+		} else {
+			/// @todo Implicit return type
+			auto return_type= newNode<IdentifierNode>();
+			return_type->name= "void";
+			func_type->returnType= std::move(return_type);
+		}
 
 		return std::move(func_type);
 	}
