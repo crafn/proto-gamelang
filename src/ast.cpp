@@ -1,3 +1,6 @@
+// Debug
+#include <iostream>
+
 #include "ast.hpp"
 #include "nullsafety.hpp"
 

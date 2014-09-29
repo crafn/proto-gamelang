@@ -1,8 +1,6 @@
 #ifndef GAMELANG_TOKEN_HPP
 #define GAMELANG_TOKEN_HPP
 
-#include <cassert>
-#include <cstdio>
 #include <string>
 #include <vector>
 

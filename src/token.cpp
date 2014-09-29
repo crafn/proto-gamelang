@@ -1,3 +1,6 @@
+#include <cassert>
+#include <cstdio>
+
 #include "token.hpp"
 
 namespace gamelang
@@ -132,7 +135,7 @@ Tokens tokenize(const char* filepath)
 				if (	tok_begin + 1 == next &&
 						singleCharTokenType(*tok_begin) != TokenType::unknown) {
 					// Token started as a single-char-token, but next
-					// letter turns out to be beginning of an identifier	
+					// letter turns out to be the beginning of an identifier
 					commit(tok_begin, next);
 					tok_begin= next;
 				}

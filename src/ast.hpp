@@ -5,9 +5,6 @@
 #include <string>
 #include <vector>
 
-// Debug
-#include <iostream>
-
 #include "token.hpp"
 
 namespace gamelang
