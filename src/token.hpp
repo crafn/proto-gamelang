@@ -15,6 +15,7 @@ enum class TokenType {
 	assign, // =
 	declaration, // :
 	endStatement, // ;
+	comma, // ,
 	openParen, // (
 	closeParen, // )
 	openBlock, // {
@@ -36,6 +37,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::assign: return "assign";
 		case TokenType::declaration: return "declaration";
 		case TokenType::endStatement: return "endStatement";
+		case TokenType::comma: return "comma";
 		case TokenType::openParen: return "openParen";
 		case TokenType::closeParen: return "closeParen";
 		case TokenType::openBlock: return "openBlock";
@@ -59,6 +61,7 @@ static const char* str(TokenType type)
 		case TokenType::assign: return "=";
 		case TokenType::declaration: return "";
 		case TokenType::endStatement: return ";";
+		case TokenType::comma: return ",";
 		case TokenType::openParen: return "(";
 		case TokenType::closeParen: return ")";
 		case TokenType::openBlock: return "{";

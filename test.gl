@@ -1,12 +1,12 @@
 let g_value : int = 50;
 
-let fibo := fn () -> int { 5 }
+let fibo := fn (v : int, asd : char) -> int { 5 }
 
 let main := fn () -> int
 {
 	var a : int = g_value;
 	a = a + 5 + 10;
 
-	return fibo() + a;
+	return a;
 }
 

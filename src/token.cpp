@@ -50,6 +50,7 @@ TokenType singleCharTokenType(char ch)
 		case '=': return TokenType::assign;
 		case ':': return TokenType::declaration;
 		case ';': return TokenType::endStatement;
+		case ',': return TokenType::comma;
 		case '(': return TokenType::openParen;
 		case ')': return TokenType::closeParen;
 		case '{': return TokenType::openBlock;
@@ -128,6 +129,13 @@ Tokens tokenize(const char* filepath)
 
 		while (next < end && tok_begin < end) {
 			if (identifierChar(*next)) {
+				if (	tok_begin + 1 == next &&
+						singleCharTokenType(*tok_begin) != TokenType::unknown) {
+					// Token started as a single-char-token, but next
+					// letter turns out to be beginning of an identifier	
+					commit(tok_begin, next);
+					tok_begin= next;
+				}
 				++next;
 				continue;
 			}

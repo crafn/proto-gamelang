@@ -112,17 +112,36 @@ struct Parser {
 		log("parseFuncType");
 		auto&& log_indent= logIndentGuard();
 
+		assert(tok->text == "fn");
 		nextToken(tok); // Skip "fn"
 
+		log(tok->text);
 		parseCheck(tok->type == TokenType::openParen, "Missing ( in fn type");
 		nextToken(tok);
 
-		/// @todo Parse arguments
+		// Arguments
 		auto func_type= newNode<FuncTypeNode>();
-		
-		parseCheck(tok->type == TokenType::closeParen, "Missing ) in fn type");	
+		while (tok->type != TokenType::closeParen) {
+			if (tok->type == TokenType::comma)
+				nextToken(tok);
+
+			auto param= newNode<ParamDeclNode>();
+
+			parseCheck(tok->type == TokenType::identifier,
+					"Missing identifier for func arg");
+			param->name= tok->text;
+			nextToken(tok);
+
+			parseCheck(tok->type == TokenType::declaration,
+					"Missing : for func arg");
+			nextToken(tok);
+
+			param->valueType= parseExpr(tok, false);
+			func_type->params.push_back(param);
+		}
 		nextToken(tok);
 
+		// Return type
 		if (!func_type->endStatement && tok->type == TokenType::yields) {
 			nextToken(tok);
 			func_type->returnType= parseExpr(tok);
@@ -150,7 +169,6 @@ struct Parser {
 		}
 
 		advance(tok);
-
 		return block;
 	}
 
@@ -225,6 +243,10 @@ struct Parser {
 		if (tok->type == TokenType::endStatement) {
 			advance(tok);
 			beginning->endStatement= true;
+			return beginning;
+		}
+
+		if (!greedy && tok->type == TokenType::comma) {
 			return beginning;
 		}
 

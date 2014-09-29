@@ -24,6 +24,7 @@ enum class AstNodeType {
 	block,
 	varDecl,
 	identifier,
+	paramDecl,
 	funcType,
 	numLiteral,
 	biOp,
@@ -73,11 +74,26 @@ struct IdentifierNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+struct ParamDeclNode final : AstNode {
+	std::string name;
+	AstNode* valueType= nullptr;
+
+	ParamDeclNode(): AstNode(AstNodeType::paramDecl) {}
+	std::vector<AstNode*> getSubNodes() const override { return {valueType}; }
+};
+
 struct FuncTypeNode final : AstNode {
 	AstNode* returnType= nullptr;
+	std::vector<ParamDeclNode*> params;
 
 	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
-	std::vector<AstNode*> getSubNodes() const override { return {returnType}; }
+	std::vector<AstNode*> getSubNodes() const override
+	{
+		std::vector<AstNode*> ret{returnType};
+		for (auto* p : params)
+			ret.push_back(p);
+		return ret;
+	}
 };
 
 struct NumLiteralNode final : AstNode {

@@ -90,6 +90,13 @@ struct CCodeGen {
 		emit(type.name);
 	}
 
+	void gen(const ParamDeclNode& param)
+	{
+		assert(param.valueType);
+		gen(*param.valueType);
+		emit(" " + param.name);
+	}
+
 	void genFuncProto(const AstNode& node, const std::string& name)
 	{
 		assert(node.type == AstNodeType::funcType);
@@ -100,7 +107,13 @@ struct CCodeGen {
 		emit(" " + name);
 
 		emit("(");
-		/// @todo Params
+		for (std::size_t i= 0; i < func.params.size(); ++i) {
+			ParamDeclNode* p= func.params[i];
+			assert(p);
+			gen(*p);
+			if (i + 1 < func.params.size())
+				emit(", ");
+		}
 		emit(")");
 	}
 
@@ -150,6 +163,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
+		CondGen<AstNodeType::paramDecl,  ParamDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
