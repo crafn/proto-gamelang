@@ -37,13 +37,19 @@ struct CCodeGen {
 
 	void gen(const BlockNode& block)
 	{
+		if (block.condition) {
+			emit("if (");
+			gen(*block.condition);
+			emit(")");
+		}
+
 		emit("\n");
 		emit("{\n");
 		{ auto&& indent_guard= indentGuard();
 			for (std::size_t i= 0; i < block.nodes.size(); ++i) {
 				AstNode& node= *NONULL(block.nodes[i]);
 
-				if (	block.functionType && i + 1 == block.nodes.size() &&
+				if (	block.funcType && i + 1 == block.nodes.size() &&
 						!containsEndStatement(node)) {
 					// Implicit return
 					emit("return ");
@@ -134,7 +140,7 @@ struct CCodeGen {
 
 	void gen(const CallNode& call)
 	{
-		gen(*NONULL(call.function));
+		gen(*NONULL(call.func));
 
 		emit("(");
 		for (std::size_t i= 0; i < call.args.size(); ++i) {

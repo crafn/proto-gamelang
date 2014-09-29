@@ -56,8 +56,8 @@ struct Parser {
 	{
 		if (thing.type == AstNodeType::block) {
 			const BlockNode& block= static_cast<const BlockNode&>(thing);
-			if (block.functionType) {
-				return block.functionType;
+			if (block.funcType) {
+				return block.funcType;
 			}
 		}
 
@@ -162,7 +162,7 @@ struct Parser {
 		nextToken(tok);
 
 		auto call= newNode<CallNode>();
-		call->function= &identifier;
+		call->func= &identifier;
 		while (tok->type != TokenType::closeParen) {
 			call->args.push_back(parseExpr(tok));
 
@@ -211,6 +211,7 @@ struct Parser {
 
 	ReturnNode* parseReturn(It& tok)
 	{
+		assert(tok->text == "return");
 		nextToken(tok);
 
 		auto ret= newNode<ReturnNode>();
@@ -218,6 +219,22 @@ struct Parser {
 			ret->value= parseExpr(tok);
 		}
 		return ret;
+	}
+
+	AstNode* parseIfExpr(It& tok)
+	{
+		assert(tok->text == "if");
+		nextToken(tok);
+
+		parseCheck(tok->type == TokenType::openParen, "Missing ( after if");
+		nextToken(tok);
+
+		auto expr= parseExpr(tok);
+
+		parseCheck(tok->type == TokenType::closeParen, "Missing ) after if");
+		nextToken(tok);
+
+		return expr;
 	}
 
 	/// greedy: parse as much as possible
@@ -237,9 +254,14 @@ struct Parser {
 					return std::move(func_type_node);
 				} else {
 					auto block= parseBlock(tok);
-					block->functionType= std::move(func_type_node);
+					block->funcType= std::move(func_type_node);
 					return std::move(block);
 				}
+			} else if (tok->text == "if") {
+				auto expr= parseIfExpr(tok);
+				auto block= parseBlock(tok);
+				block->condition= expr;
+				return block;
 			} else if (tok->text == "return") {
 				return parseReturn(tok);
 			} else {
@@ -265,8 +287,13 @@ struct Parser {
 			return beginning;
 		}
 
-		/// @todo Don't return if inside ()
+		/// @todo Don't return if parsing in brackets
 		if (tok->type == TokenType::comma) {
+			return beginning;
+		}
+
+		/// @todo Don't return if parsing in brackets
+		if (tok->type == TokenType::closeParen) {
 			return beginning;
 		}
 
@@ -298,6 +325,14 @@ struct Parser {
 			nextToken(tok);
 			auto op= newNode<BiOpNode>();
 			op->opType= BiOpType::sub;
+			op->lhs= beginning;
+			op->rhs= parseExpr(tok);
+			return op;
+		}
+		if (greedy && tok->type == TokenType::equals) {
+			nextToken(tok);
+			auto op= newNode<BiOpNode>();
+			op->opType= BiOpType::equals;
 			op->lhs= beginning;
 			op->rhs= parseExpr(tok);
 			return op;

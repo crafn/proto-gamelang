@@ -50,11 +50,18 @@ struct GlobalNode final : AstNode {
 
 struct BlockNode final : AstNode {
 	bool structure= false;
-	AstNode* functionType;
+	AstNode* funcType= nullptr;
+	AstNode* condition= nullptr;
 	std::vector<AstNode*> nodes;
 
 	BlockNode(): AstNode(AstNodeType::block) {}
-	std::vector<AstNode*> getSubNodes() const override { return nodes; }
+	std::vector<AstNode*> getSubNodes() const override
+	{
+		auto ret= nodes;
+		ret.push_back(funcType);
+		ret.push_back(condition);
+		return nodes;
+	}
 };
 
 struct VarDeclNode final : AstNode {
@@ -111,12 +118,12 @@ struct ReturnNode final : AstNode {
 };
 
 struct CallNode final : AstNode {
-	AstNode* function;
+	AstNode* func= nullptr;
 	std::vector<AstNode*> args;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= args; ret.push_back(function); return ret; }
+	{ auto ret= args; ret.push_back(func); return ret; }
 };
 
 /// TokenType contains all needed values
