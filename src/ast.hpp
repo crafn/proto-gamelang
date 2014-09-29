@@ -27,7 +27,8 @@ enum class AstNodeType {
 	funcType,
 	numLiteral,
 	biOp,
-	ret
+	ret,
+	call
 };
 
 struct AstNode {
@@ -83,6 +84,13 @@ struct ReturnNode : AstNode {
 	AstNode* value= nullptr;
 
 	ReturnNode(): AstNode(AstNodeType::ret) {}
+};
+
+struct CallNode : AstNode {
+	AstNode* function;
+	std::vector<AstNode*> params;
+
+	CallNode(): AstNode(AstNodeType::call) {}
 };
 
 /// TokenType contains all needed values

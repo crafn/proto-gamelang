@@ -219,16 +219,33 @@ struct Parser {
 
 	AstNode* parseRestExpr(AstNode* beginning, It& tok, bool greedy)
 	{
+		assert(beginning);
+
 		//log("parseRestExpr " + tok->text + " " + str(tok->type));
 		if (tok->type == TokenType::endStatement) {
 			advance(tok);
 			beginning->endStatement= true;
 			return beginning;
 		}
-		
+
+		if (	beginning->type == AstNodeType::identifier &&
+				tok->type == TokenType::openParen)
+		{
+			nextToken(tok);
+			auto call= newNode<CallNode>();
+			call->function= beginning;
+			/// @todo params
+
+			parseCheck(tok->type == TokenType::closeParen, "Missing )");
+			nextToken(tok);
+			
+			return parseRestExpr(call, tok, greedy);
+		}
+
+		/// @todo Remove duplicate code
 		if (greedy && tok->type == TokenType::assign) {
 			nextToken(tok);
-			auto&& op= newNode<BiOpNode>();
+			auto op= newNode<BiOpNode>();
 			op->opType= BiOpType::assign;
 			op->lhs= beginning;
 			op->rhs= parseExpr(tok);
@@ -236,7 +253,7 @@ struct Parser {
 		}
 		if (greedy && tok->type == TokenType::add) {
 			nextToken(tok);
-			auto&& op= newNode<BiOpNode>();
+			auto op= newNode<BiOpNode>();
 			op->opType= BiOpType::add;
 			op->lhs= beginning;
 			op->rhs= parseExpr(tok);
@@ -244,7 +261,7 @@ struct Parser {
 		}
 		if (greedy && tok->type == TokenType::sub) {
 			nextToken(tok);
-			auto&& op= newNode<BiOpNode>();
+			auto op= newNode<BiOpNode>();
 			op->opType= BiOpType::sub;
 			op->lhs= beginning;
 			op->rhs= parseExpr(tok);
