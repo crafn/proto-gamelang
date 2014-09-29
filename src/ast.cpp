@@ -1,4 +1,5 @@
 #include "ast.hpp"
+#include "nullsafety.hpp"
 
 namespace gamelang
 {
@@ -155,6 +156,24 @@ struct Parser {
 		return func_type;
 	}
 
+	CallNode* parseCall(It& tok, IdentifierNode& identifier)
+	{
+		parseCheck(tok->type == TokenType::openParen, "Missing (");
+		nextToken(tok);
+
+		auto call= newNode<CallNode>();
+		call->function= &identifier;
+		while (tok->type != TokenType::closeParen) {
+			call->args.push_back(parseExpr(tok));
+
+			if (tok->type == TokenType::comma)
+				nextToken(tok);
+		}
+		nextToken(tok);
+
+		return call;
+	}
+
 	BlockNode* parseBlock(It& tok)
 	{
 		log("parseBlock");
@@ -246,21 +265,15 @@ struct Parser {
 			return beginning;
 		}
 
-		if (!greedy && tok->type == TokenType::comma) {
+		/// @todo Don't return if inside ()
+		if (tok->type == TokenType::comma) {
 			return beginning;
 		}
 
 		if (	beginning->type == AstNodeType::identifier &&
 				tok->type == TokenType::openParen)
 		{
-			nextToken(tok);
-			auto call= newNode<CallNode>();
-			call->function= beginning;
-			/// @todo params
-
-			parseCheck(tok->type == TokenType::closeParen, "Missing )");
-			nextToken(tok);
-			
+			auto call= parseCall(tok, static_cast<IdentifierNode&>(*NONULL(beginning)));
 			return parseRestExpr(call, tok, greedy);
 		}
 
@@ -319,6 +332,8 @@ bool containsEndStatement(const AstNode& node)
 		if (containsEndStatement(*sub))
 			return true;
 	}
+
+	return false;
 }
 
 AstContext genAst(const Tokens& tokens)

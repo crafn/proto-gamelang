@@ -135,17 +135,23 @@ struct CCodeGen {
 	void gen(const CallNode& call)
 	{
 		gen(*NONULL(call.function));
-		/// @todo params
-		emit("()");
+
+		emit("(");
+		for (std::size_t i= 0; i < call.args.size(); ++i) {
+			const AstNode& arg= *NONULL(call.args[i]);
+			gen(arg);
+			if (i + 1 < call.args.size())
+				emit(", ");
+		}
+		emit(")");
 	}
 
 	template <AstNodeType nodeType, typename T>
 	struct CondGen {
 		static void eval(CCodeGen& self, const AstNode& node)
 		{
-			if (node.type == nodeType) {
+			if (node.type == nodeType)
 				self.gen(static_cast<const T&>(node));
-			}
 		}
 	};
 

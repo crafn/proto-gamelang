@@ -112,11 +112,11 @@ struct ReturnNode final : AstNode {
 
 struct CallNode final : AstNode {
 	AstNode* function;
-	std::vector<AstNode*> params;
+	std::vector<AstNode*> args;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= params; ret.push_back(function); return ret; }
+	{ auto ret= args; ret.push_back(function); return ret; }
 };
 
 /// TokenType contains all needed values
