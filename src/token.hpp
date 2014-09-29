@@ -24,6 +24,7 @@ enum class TokenType {
 	yields, // ->
 	equals, // ==
 	add, // +
+	sub, // -
 	unknown
 };
 
@@ -44,6 +45,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::yields: return "yields";
 		case TokenType::equals: return "equals";
 		case TokenType::add: return "add";
+		case TokenType::sub: return "sub";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -66,6 +68,7 @@ static const char* str(TokenType type)
 		case TokenType::yields: return "->";
 		case TokenType::equals: return "==";
 		case TokenType::add: return "+";
+		case TokenType::sub: return "-";
 		case TokenType::unknown:
 		default: return "???";
 	}

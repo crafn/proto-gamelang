@@ -1,10 +1,9 @@
-let other : int = 5;
-let value : int;
+let g_value : int = 50;
 let main := fn () -> int
 {
-	var local : long = 0;
-	local = 1337;
-
-	var b : long = local + 1;
+	var a : int = g_value;
+	a = a + 5 + 10;
+	var b : int = a + 1;
+	return b - 50;
 }
 

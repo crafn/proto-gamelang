@@ -111,6 +111,13 @@ struct CCodeGen {
 		gen(*op.rhs);
 	}
 
+	void gen(const ReturnNode& ret)
+	{
+		emit("return ");
+		if (ret.value)
+			gen(*ret.value);
+	}
+
 	template <AstNodeType nodeType, typename T>
 	struct CondGen {
 		static void eval(CCodeGen& self, const AstNode& node)
@@ -129,6 +136,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
+		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
 	}
 
 };

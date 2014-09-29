@@ -172,6 +172,17 @@ struct Parser {
 		return type;
 	}
 
+	ReturnNode* parseReturn(It& tok)
+	{
+		nextToken(tok);
+
+		auto ret= newNode<ReturnNode>();
+		if (tok->type != TokenType::endStatement) {
+			ret->value= parseExpr(tok);
+		}
+		return ret;
+	}
+
 	/// greedy: parse as much as possible
 	///   e.g. `(stuff + 2) = 5;` -> whole statement is parsed
 	/// non-greedy: parse first full sub-statement
@@ -192,6 +203,8 @@ struct Parser {
 					block->functionType= std::move(func_type_node);
 					return std::move(block);
 				}
+			} else if (tok->text == "return") {
+				return parseReturn(tok);
 			} else {
 				return parseRestExpr(parseIdentifier(tok), tok, greedy);
 			}
@@ -229,7 +242,14 @@ struct Parser {
 			op->rhs= parseExpr(tok);
 			return op;
 		}
-
+		if (greedy && tok->type == TokenType::sub) {
+			nextToken(tok);
+			auto&& op= newNode<BiOpNode>();
+			op->opType= BiOpType::sub;
+			op->lhs= beginning;
+			op->rhs= parseExpr(tok);
+			return op;
+		}
 		return beginning;
 	}
 

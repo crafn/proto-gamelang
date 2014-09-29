@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 
 #include "ast.hpp"
 #include "codegen.hpp"
@@ -22,5 +23,14 @@ int main(int argc, const char* argv[])
 	auto&& ast= gamelang::genAst(tokens);
 
 	std::cout << "*** C ***\n";
-	std::cout << gamelang::genC(ast);
+	std::string code= gamelang::genC(ast);
+	std::cout << code;
+
+	{
+		std::ofstream output{"out.c", std::ios::binary};
+		output << code;
+		output.close();
+
+		system("gcc out.c -o out");
+	}
 }

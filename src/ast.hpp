@@ -26,7 +26,8 @@ enum class AstNodeType {
 	identifier,
 	funcType,
 	numLiteral,
-	biOp
+	biOp,
+	ret
 };
 
 struct AstNode {
@@ -76,6 +77,12 @@ struct NumLiteralNode : AstNode {
 	std::string value;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
+};
+
+struct ReturnNode : AstNode {
+	AstNode* value= nullptr;
+
+	ReturnNode(): AstNode(AstNodeType::ret) {}
 };
 
 /// TokenType contains all needed values
