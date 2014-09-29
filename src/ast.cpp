@@ -2,12 +2,14 @@
 
 namespace gamelang
 {
+
 namespace
 {
 
 struct Parser {
 	const Tokens& tokens;
 	int logIndent;
+	AstContext context;
 
 	using It= Tokens::const_iterator;
 	template <typename T>
@@ -15,24 +17,30 @@ struct Parser {
 	using Str= std::string;
 
 	template <typename T>
-	UPtr<T> newNode() const { return UPtr<T>(new T{}); }
+	T* newNode()
+	{
+		context.nodes.emplace_back(new T{});
+		return static_cast<T*>(context.nodes.back().get());
+	}
 
 	void parseCheck(bool expr, const char* msg)
 	{ if (!expr) log(msg); assert(expr); }
 
-	void log(const Str& str) const
+	void log(const Str& str)
 	{
 		for (int i= 0; i < logIndent; ++i)
 			std::cout << "  ";
 		std::cout << str << std::endl;
 	}
 
-	struct LogIndent {
+	struct LogIndentGuard {
 		int& value;
-		LogIndent(int& v): value(v) { ++value; }
-		~LogIndent() { --value; }
+		LogIndentGuard(int& v): value(v) { ++value; }
+		~LogIndentGuard() { --value; }
 	};
-#define LOG_INDENT_SCOPE() LogIndent indent{logIndent}
+
+	LogIndentGuard logIndentGuard()
+	{ return LogIndentGuard{logIndent}; }
 
 	void nextToken(It& it)
 	{
@@ -43,10 +51,22 @@ struct Parser {
 
 	void advance(It& it) { ++it; }
 
-	UPtr<VarDeclNode> parseVarDecl(It& tok)
+	AstNode* deducedType(const AstNode& thing)
+	{
+		if (thing.type == AstNodeType::block) {
+			const BlockNode& block= static_cast<const BlockNode&>(thing);
+			if (block.functionType) {
+				return block.functionType;
+			}
+		}
+
+		assert(0 && "@todo deduction");
+	}
+
+	VarDeclNode* parseVarDecl(It& tok)
 	{
 		log("parseVarDecl");
-		LOG_INDENT_SCOPE();
+		auto&& log_indent= logIndentGuard();
 
 		auto var= newNode<VarDeclNode>();
 		nextToken(tok); // Skip "let"
@@ -61,7 +81,7 @@ struct Parser {
 
 		if (tok->type == TokenType::identifier) { // Explicit type
 			log(":");
-			var->valueType= parseType(tok);
+			var->valueType= parseExpr(tok);
 			nextToken(tok);
 		}
 		
@@ -74,6 +94,9 @@ struct Parser {
 			log("=");
 			nextToken(tok);
 			var->value= parseExpr(tok);
+
+			if (!var->valueType) // Deduce implicit type
+				var->valueType= deducedType(*var->value);
 		} 
 
 		if (tok->type == TokenType::endStatement)
@@ -82,23 +105,10 @@ struct Parser {
 		return std::move(var);
 	}
 
-	UPtr<TypeNode> parseType(It& tok)
-	{
-		parseCheck(tok->type == TokenType::identifier, "Invalid type");
-		if (tok->text == "fn") {
-			return parseFuncType(tok);	
-		} else {
-			log(tok->text);
-			auto type= newNode<StructTypeNode>();
-			type->name= tok->text;
-			return std::move(type);
-		}
-	}
-
-	UPtr<FuncTypeNode> parseFuncType(It& tok)
+	FuncTypeNode* parseFuncType(It& tok)
 	{
 		log("parseFuncType");
-		LOG_INDENT_SCOPE();
+		auto&& log_indent= logIndentGuard();
 
 		nextToken(tok); // Skip "fn"
 
@@ -111,13 +121,18 @@ struct Parser {
 		parseCheck(tok->type == TokenType::closeParen, "Missing ) in fn type");	
 		nextToken(tok);
 
+		/// @todo Parse return type
+		auto return_type= newNode<IdentifierNode>();
+		return_type->name= "void";
+		func_type->returnType= std::move(return_type);
+
 		return std::move(func_type);
 	}
 
-	UPtr<BlockNode> parseBlock(It& tok)
+	BlockNode* parseBlock(It& tok)
 	{
 		log("parseBlock");
-		LOG_INDENT_SCOPE();
+		auto&& log_indent= logIndentGuard();
 
 		nextToken(tok); // Skip "{"
 
@@ -130,19 +145,19 @@ struct Parser {
 		return std::move(block);
 	}
 
-	UPtr<NumLiteralNode> parseNumLiteral(It& tok)
+	NumLiteralNode* parseNumLiteral(It& tok)
 	{
 		auto literal= newNode<NumLiteralNode>();
 		literal->value= tok->text;
+		log(literal->value);
+
 		nextToken(tok);
+
 		return std::move(literal);
 	}
 
-	UPtr<AstNode> parseExpr(It& tok)
+	AstNode* parseExpr(It& tok)
 	{
-		//log("parseExpr");
-		//LOG_INDENT_SCOPE();
-
 		if (tok->type == TokenType::identifier) {
 			if (tok->text == "let") {
 				return parseVarDecl(tok);
@@ -158,6 +173,11 @@ struct Parser {
 				} else {
 					parseCheck(false, "Rubbish after function type");
 				}
+			} else {
+				auto type= newNode<IdentifierNode>();
+				type->name= tok->text;
+				log(type->name);
+				return std::move(type);
 			}
 		} else if (tok->type == TokenType::number) {
 			return parseNumLiteral(tok);
@@ -166,7 +186,7 @@ struct Parser {
 		parseCheck(false, "Broken expression");
 	}
 
-	UPtr<GlobalNode> parse()
+	AstContext parse()
 	{
 		// Start parsing
 		auto root= newNode<GlobalNode>();
@@ -174,15 +194,16 @@ struct Parser {
 		while (it != tokens.end()) {
 			root->nodes.emplace_back(parseExpr(it));
 		}
-		return std::move(root);
+		return std::move(context);
 	}
 
-#undef LOG_INDENT_SCOPE
 };
+
+
 
 } // anonymous
 
-AstNodePtr genAst(const Tokens& tokens)
+AstContext genAst(const Tokens& tokens)
 {
 	Parser parser{tokens};
 	return parser.parse();

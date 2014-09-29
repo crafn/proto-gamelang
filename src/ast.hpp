@@ -14,14 +14,16 @@ namespace gamelang
 {
 
 struct AstNode;
-using AstNodePtr= std::unique_ptr<AstNode>;
+struct AstContext {
+	/// First should be the GlobalNode
+	std::vector<std::unique_ptr<AstNode>> nodes;
+};
 
 enum class AstNodeType {
 	global,
 	block,
 	varDecl,
-	type,
-	structType,
+	identifier,
 	funcType,
 	numLiteral
 };
@@ -33,15 +35,15 @@ struct AstNode {
 };
 
 struct GlobalNode : AstNode {
-	std::vector<AstNodePtr> nodes;
+	std::vector<AstNode*> nodes;
 
 	GlobalNode(): AstNode(AstNodeType::global) {}
 };
 
 struct BlockNode : AstNode {
 	bool structure= false;
-	AstNodePtr functionType;
-	std::vector<AstNodePtr> nodes;
+	AstNode* functionType;
+	std::vector<AstNode*> nodes;
 
 	BlockNode(): AstNode(AstNodeType::block) {}
 };
@@ -49,32 +51,31 @@ struct BlockNode : AstNode {
 struct VarDeclNode : AstNode {
 	bool constant= true;
 	std::string name;
-	AstNodePtr valueType;
-	AstNodePtr value;
+	AstNode* valueType= nullptr;
+	AstNode* value= nullptr;
 
 	VarDeclNode(): AstNode(AstNodeType::varDecl) {}
 };
 
-struct TypeNode : AstNode {
-	TypeNode(): AstNode(AstNodeType::type) {}
-	TypeNode(AstNodeType t): AstNode(t) {}
-};
-
-struct StructTypeNode : TypeNode {
+struct IdentifierNode : AstNode {
 	std::string name;
-	StructTypeNode(): TypeNode(AstNodeType::structType) {}
+
+	IdentifierNode(): AstNode(AstNodeType::identifier) {}
 };
 
-struct FuncTypeNode : TypeNode {
-	FuncTypeNode(): TypeNode(AstNodeType::funcType) {}
+struct FuncTypeNode : AstNode {
+	AstNode* returnType;
+
+	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
 };
 
 struct NumLiteralNode : AstNode {
 	std::string value;
+
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
 };
 
-AstNodePtr genAst(const Tokens& tokens);
+AstContext genAst(const Tokens& tokens);
 
 } // gamelang
 

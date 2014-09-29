@@ -6,99 +6,131 @@ namespace
 {
 
 struct CCodeGen {
-	std::string gen(const GlobalNode& global)
+	std::string code;
+	int indent= 0;
+
+	struct IndentGuard {
+		int& value;
+		IndentGuard(int& v): value(v) { ++value; }
+		~IndentGuard(){ --value; }
+	};
+
+	IndentGuard indentGuard() { return IndentGuard{indent}; }
+
+	void emit(std::string str)
 	{
-		std::string code;
-		for (const AstNodePtr& node : global.nodes) {
-			code += gen(*node);
-			code += "\n";
+		if (!code.empty() && code[code.size() - 1] == '\n') {
+			for (int i= 0; i < indent; ++i)
+				code += "  ";
 		}
-		return code;
+		code += str;
 	}
 
-	std::string gen(const BlockNode& block)
+	void gen(const GlobalNode& global)
 	{
-		std::string code;
-		for (const AstNodePtr& node : block.nodes) {
-			code += gen(*node);
-			code += "\n";
+		for (const AstNode* node : global.nodes) {
+			assert(node);
+			gen(*node);
+			emit("\n");
 		}
-		return code;
 	}
 
-	std::string gen(const VarDeclNode& var)
+	void gen(const BlockNode& block)
 	{
-		std::string code;
-		
+		auto&& indent_guard= indentGuard();
+
+		emit("\n{\n");
+		for (const AstNode* node : block.nodes) {
+			assert(node);
+			gen(*node);
+			emit("\n");
+		}
+		emit("\n}");
+	}
+
+	void gen(const VarDeclNode& var)
+	{
 		assert(var.valueType);
-
-		code += gen(*var.valueType);
-		code += " ";
-		code += var.name;
 		
-		if (var.value) {
-			code += "= ";
-			code +=	gen(*var.value);
+		if (var.valueType->type == AstNodeType::funcType) {
+			// Function
+			assert(var.constant && "@todo Non-constant func vars");
+			genFuncProto(*var.valueType, var.name);
+
+			if (var.value) {
+				// Block
+				gen(*var.value);
+			} else {
+				emit(";");
+			}
+		} else {
+			// Variable
+			gen(*var.valueType);
+			emit(" " + var.name);
+			if (var.value) {
+				emit("= ");
+				gen(*var.value);
+			}
+			emit(";");
 		}
-
-		code += ";";
-
-		return code;
 	}
 
-	std::string gen(const StructTypeNode& type)
+	void gen(const IdentifierNode& type)
 	{
-		std::string code;
-		code += type.name;
-		return code;
+		emit(type.name);
 	}
 
-	std::string gen(const FuncTypeNode& func)
+	void genFuncProto(const AstNode& node, const std::string& name)
 	{
-		std::string code;
-		return code;
+		assert(node.type == AstNodeType::funcType);
+		auto&& func= static_cast<const FuncTypeNode&>(node);
+		assert(func.returnType);
+
+		gen(*func.returnType);
+		emit(" " + name);
+
+		emit("(");
+		/// @todo Params
+		emit(")");
 	}
 
-	std::string gen(const NumLiteralNode& literal)
+	void gen(const NumLiteralNode& literal)
 	{
-		return literal.value;
+		emit(literal.value);
 	}
 
 	template <AstNodeType nodeType, typename T>
-	struct ConditionalGen {
-		static void eval(CCodeGen& self, std::string& result, const AstNode& node)
+	struct CondGen {
+		static void eval(CCodeGen& self, const AstNode& node)
 		{
 			if (node.type == nodeType) {
-				result= self.gen(static_cast<const T&>(node));
+				self.gen(static_cast<const T&>(node));
 			}
 		}
 	};
 
-	template <AstNodeType nodeType, typename T>
-	constexpr void conditionalGen(CCodeGen& self, std::string& result, const AstNode& node)
-	{ ConditionalGen<nodeType, T>::eval(self, result, node); }
-
-	std::string gen(const AstNode& node)
+	void gen(const AstNode& node)
 	{
 		std::string str;
-		conditionalGen<AstNodeType::global,     GlobalNode>(*this, str, node);
-		conditionalGen<AstNodeType::block,      BlockNode>(*this, str, node);
-		conditionalGen<AstNodeType::varDecl,    VarDeclNode>(*this, str, node);
-		conditionalGen<AstNodeType::structType, StructTypeNode>(*this, str, node);
-		conditionalGen<AstNodeType::funcType,   FuncTypeNode>(*this, str, node);
-		conditionalGen<AstNodeType::numLiteral, NumLiteralNode>(*this, str, node);
-		return str;
+		CondGen<AstNodeType::global,     GlobalNode>::eval(*this, node);
+		CondGen<AstNodeType::block,      BlockNode>::eval(*this, node);
+		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
+		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
+		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
 	}
 
 };
 
 } // anonymous
 
-std::string genC(const AstNodePtr& root)
+std::string genC(const AstContext& ctx)
 {
-	assert(root);
+	assert(!ctx.nodes.empty());
+	assert(ctx.nodes.front());
+
 	CCodeGen gen;
-	return gen.gen(*root);
+	gen.gen(*ctx.nodes.front());
+	return gen.code;
 }
 
 } // gamelang

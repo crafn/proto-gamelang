@@ -1,1 +1,6 @@
-let value : int = 5;
+let value : int;
+let other : int = 5;
+let main := fn ()
+{
+	let local : int = 0;
+}
