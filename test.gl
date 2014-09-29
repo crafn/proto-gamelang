@@ -3,6 +3,10 @@ let other : int = 5;
 let main := fn () -> int
 {
 	let local : long = 0;
+
+	let closure := fn ()
+	{
+	}
 }
 
 let foo : fn () -> void = { }

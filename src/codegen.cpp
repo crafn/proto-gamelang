@@ -37,15 +37,16 @@ struct CCodeGen {
 
 	void gen(const BlockNode& block)
 	{
-		auto&& indent_guard= indentGuard();
-
-		emit("\n{");
+		emit("\n");
+		emit("{\n");
 		for (const AstNode* node : block.nodes) {
-			emit("\n");
+			auto&& indent_guard= indentGuard();
+
 			assert(node);
 			gen(*node);
+			emit("\n");
 		}
-		emit("\n}");
+		emit("}");
 	}
 
 	void gen(const VarDeclNode& var)
