@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "nullsafety.hpp"
 
 namespace gamelang
 {
@@ -29,8 +30,7 @@ struct CCodeGen {
 	void gen(const GlobalNode& global)
 	{
 		for (const AstNode* node : global.nodes) {
-			assert(node);
-			gen(*node);
+			gen(*NONULL(node));
 			emit(";\n");
 		}
 	}
@@ -41,16 +41,15 @@ struct CCodeGen {
 		emit("{\n");
 		{ auto&& indent_guard= indentGuard();
 			for (std::size_t i= 0; i < block.nodes.size(); ++i) {
-				AstNode* node= block.nodes[i];
-				assert(node);
+				AstNode& node= *NONULL(block.nodes[i]);
 
 				if (	block.functionType && i + 1 == block.nodes.size() &&
-						!containsEndStatement(*node)) {
+						!containsEndStatement(node)) {
 					// Implicit return
 					emit("return ");
 				}
 
-				gen(*node);
+				gen(node);
 				emit(";\n");
 			}
 		}
@@ -59,12 +58,12 @@ struct CCodeGen {
 
 	void gen(const VarDeclNode& var)
 	{
-		assert(var.valueType);
+		auto& value_type= *NONULL(var.valueType);
 		
-		if (var.valueType->type == AstNodeType::funcType) {
+		if (value_type.type == AstNodeType::funcType) {
 			// Function
 			assert(var.constant && "@todo Non-constant func vars");
-			genFuncProto(*var.valueType, var.name);
+			genFuncProto(value_type, var.name);
 
 			if (var.value) {
 				// Block
@@ -72,7 +71,7 @@ struct CCodeGen {
 			}
 		} else {
 			// Variable
-			gen(*var.valueType);
+			gen(value_type);
 			if (var.constant)
 				emit(" const");
 
@@ -92,8 +91,7 @@ struct CCodeGen {
 
 	void gen(const ParamDeclNode& param)
 	{
-		assert(param.valueType);
-		gen(*param.valueType);
+		gen(*NONULL(param.valueType));
 		emit(" " + param.name);
 	}
 
@@ -101,16 +99,14 @@ struct CCodeGen {
 	{
 		assert(node.type == AstNodeType::funcType);
 		auto&& func= static_cast<const FuncTypeNode&>(node);
-		assert(func.returnType);
 
-		gen(*func.returnType);
+		gen(*NONULL(func.returnType));
 		emit(" " + name);
 
 		emit("(");
 		for (std::size_t i= 0; i < func.params.size(); ++i) {
-			ParamDeclNode* p= func.params[i];
-			assert(p);
-			gen(*p);
+			const ParamDeclNode& p= *NONULL(func.params[i]);
+			gen(p);
 			if (i + 1 < func.params.size())
 				emit(", ");
 		}
@@ -124,12 +120,9 @@ struct CCodeGen {
 
 	void gen(const BiOpNode& op)
 	{
-		assert(op.lhs);
-		assert(op.rhs);
-
-		gen(*op.lhs);
+		gen(*NONULL(op.lhs));
 		emit(" " + std::string(str(op.opType)) + " ");
-		gen(*op.rhs);
+		gen(*NONULL(op.rhs));
 	}
 
 	void gen(const ReturnNode& ret)
@@ -141,8 +134,7 @@ struct CCodeGen {
 
 	void gen(const CallNode& call)
 	{
-		assert(call.function);
-		gen(*call.function);
+		gen(*NONULL(call.function));
 		/// @todo params
 		emit("()");
 	}
