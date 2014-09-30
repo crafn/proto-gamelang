@@ -308,10 +308,19 @@ struct Parser {
 		}
 
 		if (	beginning->type == AstNodeType::identifier &&
-				tok->type == TokenType::openParen)
-		{
+				tok->type == TokenType::openParen) {
 			auto call= parseCall(tok, static_cast<IdentifierNode&>(*NONULL(beginning)));
 			return parseRestExpr(call, tok, greedy);
+		}
+
+		if (tok->type == TokenType::dot) {
+			auto op_type= tok->type;
+			nextToken(tok);
+			auto op= newNode<BiOpNode>();
+			op->opType= BiOpType::dot;
+			op->lhs= beginning;
+			op->rhs= parseExpr(tok);
+			return op;
 		}
 
 		if (greedy) {

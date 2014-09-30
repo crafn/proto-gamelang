@@ -62,6 +62,7 @@ TokenType singleCharTokenType(char ch)
 		case ']': return TokenType::closeSquare;
 		case '+': return TokenType::add;
 		case '-': return TokenType::sub;
+		case '.': return TokenType::dot;
 		default: return TokenType::unknown;
 	}
 }

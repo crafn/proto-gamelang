@@ -127,8 +127,12 @@ struct CCodeGen {
 
 	void gen(const BiOpNode& op)
 	{
+		const char* spacing= "";
+		if (op.opType != BiOpType::dot)
+			spacing= " ";
+
 		gen(*NONULL(op.lhs));
-		emit(" " + std::string(str(op.opType)) + " ");
+		emit(spacing + std::string(str(op.opType)) + spacing);
 		gen(*NONULL(op.rhs));
 	}
 
