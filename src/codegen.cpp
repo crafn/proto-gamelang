@@ -261,10 +261,10 @@ struct AstCModifier {
 			self_type->name= "int"; /// @todo Correct type
 
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= "C_R_self";
+			self_id->name= "_cR_self";
 
 			auto self_param= context.newNode<ParamDeclNode>();
-			self_param->name= "C_R_self"; /// @todo Should use id, not str
+			self_param->name= "_cR_self"; /// @todo Should use id, not str
 			self_param->valueType= self_type;
 
 			auto ctor_func_type= context.newNode<FuncTypeNode>();
@@ -275,7 +275,7 @@ struct AstCModifier {
 			ctor_block->funcType= ctor_func_type;
 
 			auto ctor_func= context.newNode<VarDeclNode>();
-			ctor_func->name= "C_R_ctor";
+			ctor_func->name= "_cR_ctor";
 			ctor_func->valueType= ctor_func_type;
 			ctor_func->value= ctor_block;
 
