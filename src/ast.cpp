@@ -82,9 +82,7 @@ struct Parser {
 		nextToken(tok);
 
 		parseCheck(tok->type == TokenType::identifier, "Error in var decl name");
-		var->name= tok->text;
-		log(var->name);
-		nextToken(tok);
+		var->identifier= parseIdentifier(tok);
 
 		parseCheck(tok->type == TokenType::declaration, "Missing : in var decl");
 		nextToken(tok);
@@ -101,6 +99,11 @@ struct Parser {
 			log("=");
 			nextToken(tok);
 			var->value= parseExpr(tok);
+
+			if (NONULL(var->value)->type == AstNodeType::block) {
+				auto& block= static_cast<BlockNode&>(*NONULL(var->value));
+				block.boundTo= var->identifier;
+			}
 
 			if (!var->valueType) // Deduce implicit type
 				var->valueType= deducedType(*var->value);
@@ -131,8 +134,7 @@ struct Parser {
 
 			parseCheck(tok->type == TokenType::identifier,
 					"Missing identifier for func arg");
-			param->name= tok->text;
-			nextToken(tok);
+			param->identifier= parseIdentifier(tok);
 
 			parseCheck(tok->type == TokenType::declaration,
 					"Missing : for func arg");
@@ -144,7 +146,7 @@ struct Parser {
 		nextToken(tok);
 
 		// Return type
-		if (!func_type->endStatement && tok->type == TokenType::yields) {
+		if (!func_type->endStatement && tok->type == TokenType::rightArrow) {
 			nextToken(tok);
 			func_type->returnType= parseExpr(tok);
 		} else {

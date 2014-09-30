@@ -25,6 +25,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
 		CondGen<AstNodeType::call,       CallNode>::eval(*this, node);
+		CondGen<AstNodeType::qualifier,  QualifierNode>::eval(*this, node);
 	}
 
 private:
@@ -53,6 +54,11 @@ private:
 			gen(*NONULL(node));
 			emit(";\n");
 		}
+	}
+
+	void gen(const IdentifierNode& type)
+	{
+		emit(type.name);
 	}
 
 	void gen(const BlockNode& block)
@@ -88,21 +94,21 @@ private:
 		
 		if (value_type.type == AstNodeType::funcType) {
 			assert(var.constant && "@todo Non-constant func vars");
-			genFuncProto(value_type, var.name);
+			genFuncProto(value_type, NONULL(var.identifier)->name);
 			if (var.value)
 				gen(*var.value); // Block
 		} else if (value_type.type == AstNodeType::structType) {
 			assert(var.constant && "Non-constant struct var");
 			emit("typedef struct ");
 			gen(*NONULL(var.value)); // Block
-			emit(" " + var.name);
+			emit(" " + NONULL(var.identifier)->name);
 		} else {
 			// Variable
 			gen(value_type);
 			if (var.constant)
 				emit(" const");
 
-			emit(" " + var.name);
+			emit(" " + NONULL(var.identifier)->name);
 
 			if (var.value) {
 				emit(" = ");
@@ -111,15 +117,10 @@ private:
 		}
 	}
 
-	void gen(const IdentifierNode& type)
-	{
-		emit(type.name);
-	}
-
 	void gen(const ParamDeclNode& param)
 	{
 		gen(*NONULL(param.valueType));
-		emit(" " + param.name);
+		emit(" " + NONULL(param.identifier)->name);
 	}
 
 	void genFuncProto(const AstNode& node, const std::string& name)
@@ -148,7 +149,8 @@ private:
 	void gen(const BiOpNode& op)
 	{
 		const char* spacing= "";
-		if (op.opType != BiOpType::dot)
+		if (	op.opType != BiOpType::dot &&
+				op.opType != BiOpType::rightArrow)
 			spacing= " ";
 
 		gen(*NONULL(op.lhs));
@@ -177,6 +179,13 @@ private:
 		emit(")");
 	}
 
+	void gen(const QualifierNode& qual)
+	{
+		gen(*NONULL(qual.target));
+		if (qual.qualifierType == QualifierType::pointer)
+			emit("*");
+	}
+
 	template <AstNodeType nodeType, typename T>
 	struct CondGen {
 		static void eval(CCodeGen& self, const AstNode& node)
@@ -200,6 +209,8 @@ struct AstCModifier {
 		conditional,
 		plainScope
 	};
+
+	std::string clashPrevention() const { return "_cR_"; }
 
 	std::stack<ScopeType> scopeStack;
 	std::vector<AstNode*> globalInsertRequests;
@@ -253,19 +264,21 @@ struct AstCModifier {
 		scopeStack.pop();
 
 		if (block.structure) {
-			// Check for initialized vars and create ctor for them
+			// Create ctor for structure
+
 			auto void_type= context.newNode<IdentifierNode>();
 			void_type->name= "void";
 
-			auto self_type= context.newNode<IdentifierNode>();
-			self_type->name= "int"; /// @todo Correct type
-
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= "_cR_self";
+			self_id->name= clashPrevention() + "self";
+
+			auto self_param_ptr_qual= context.newNode<QualifierNode>();
+			self_param_ptr_qual->qualifierType= QualifierType::pointer;
+			self_param_ptr_qual->target= block.boundTo;
 
 			auto self_param= context.newNode<ParamDeclNode>();
-			self_param->name= "_cR_self"; /// @todo Should use id, not str
-			self_param->valueType= self_type;
+			self_param->identifier= self_id;
+			self_param->valueType= self_param_ptr_qual;
 
 			auto ctor_func_type= context.newNode<FuncTypeNode>();
 			ctor_func_type->returnType= void_type;
@@ -274,20 +287,19 @@ struct AstCModifier {
 			auto ctor_block= context.newNode<BlockNode>();
 			ctor_block->funcType= ctor_func_type;
 
+			auto func_id= context.newNode<IdentifierNode>();
+			func_id->name= clashPrevention() + "ctor";
+
 			auto ctor_func= context.newNode<VarDeclNode>();
-			ctor_func->name= "_cR_ctor";
+			ctor_func->identifier= func_id;
 			ctor_func->valueType= ctor_func_type;
 			ctor_func->value= ctor_block;
 
 			for (VarDeclNode* decl : structInitVars) {
-				/// @todo VarDeclNode should contain IdentifierNode, not str
-				auto id= context.newNode<IdentifierNode>();
-				id->name= decl->name;
-
 				auto access_op= context.newNode<BiOpNode>();
-				access_op->opType= BiOpType::dot;
+				access_op->opType= BiOpType::rightArrow;
 				access_op->lhs= self_id;
-				access_op->rhs= id;
+				access_op->rhs= decl->identifier;
 
 				auto init_op= context.newNode<BiOpNode>();
 				init_op->opType= BiOpType::assign;

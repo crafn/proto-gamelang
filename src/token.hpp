@@ -20,7 +20,7 @@ enum class TokenType {
 	closeBlock, // }
 	openSquare, // [
 	closeSquare, // ]
-	yields, // ->
+	rightArrow, // ->
 	equals, // ==
 	add, // +
 	sub, // -
@@ -43,7 +43,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::closeBlock: return "closeBlock";
 		case TokenType::openSquare: return "openSquare";
 		case TokenType::closeSquare: return "closeSquare";
-		case TokenType::yields: return "yields";
+		case TokenType::rightArrow: return "yields";
 		case TokenType::equals: return "equals";
 		case TokenType::add: return "add";
 		case TokenType::sub: return "sub";
@@ -68,7 +68,7 @@ static const char* str(TokenType type)
 		case TokenType::closeBlock: return "}";
 		case TokenType::openSquare: return "[";
 		case TokenType::closeSquare: return "]";
-		case TokenType::yields: return "->";
+		case TokenType::rightArrow: return "->";
 		case TokenType::equals: return "==";
 		case TokenType::add: return "+";
 		case TokenType::sub: return "-";

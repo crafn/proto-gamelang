@@ -70,7 +70,7 @@ TokenType singleCharTokenType(char ch)
 TokenType doubleCharTokenType(char ch1, char ch2)
 {
 	if (ch1 == '-' && ch2 == '>')
-		return TokenType::yields;
+		return TokenType::rightArrow;
 	if (ch1 == '=' && ch2 == '=')
 		return TokenType::equals;
 

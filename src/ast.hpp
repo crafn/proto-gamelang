@@ -45,16 +45,17 @@ private:
 
 enum class AstNodeType {
 	global,
+	identifier,
 	block,
 	varDecl,
-	identifier,
 	paramDecl,
 	funcType,
 	structType,
 	numLiteral,
 	biOp,
 	ret,
-	call
+	call,
+	qualifier
 };
 
 struct AstNode {
@@ -73,7 +74,16 @@ struct GlobalNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return listAsVec(nodes); }
 };
 
+struct IdentifierNode final : AstNode {
+	std::string name;
+
+	IdentifierNode(): AstNode(AstNodeType::identifier) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
+};
+
 struct BlockNode final : AstNode {
+	IdentifierNode* boundTo= nullptr;
+
 	bool structure= false;
 	AstNode* funcType= nullptr;
 	AstNode* condition= nullptr;
@@ -91,27 +101,22 @@ struct BlockNode final : AstNode {
 
 struct VarDeclNode final : AstNode {
 	bool constant= true;
-	std::string name;
+	IdentifierNode* identifier= nullptr;
 	AstNode* valueType= nullptr;
 	AstNode* value= nullptr;
 
 	VarDeclNode(): AstNode(AstNodeType::varDecl) {}
-	std::vector<AstNode*> getSubNodes() const override { return {valueType, value}; }
-};
-
-struct IdentifierNode final : AstNode {
-	std::string name;
-
-	IdentifierNode(): AstNode(AstNodeType::identifier) {}
-	std::vector<AstNode*> getSubNodes() const override { return {}; }
+	std::vector<AstNode*> getSubNodes() const override
+	{ return {identifier, valueType, value}; }
 };
 
 struct ParamDeclNode final : AstNode {
-	std::string name;
+	IdentifierNode* identifier= nullptr;
 	AstNode* valueType= nullptr;
 
 	ParamDeclNode(): AstNode(AstNodeType::paramDecl) {}
-	std::vector<AstNode*> getSubNodes() const override { return {valueType}; }
+	std::vector<AstNode*> getSubNodes() const override
+	{ return {identifier, valueType}; }
 };
 
 struct FuncTypeNode final : AstNode {
@@ -140,6 +145,18 @@ struct NumLiteralNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+/// TokenType contains all needed values
+using BiOpType= TokenType;
+
+struct BiOpNode final : AstNode {
+	AstNode* lhs= nullptr;
+	AstNode* rhs= nullptr;
+	BiOpType opType;
+
+	BiOpNode(): AstNode(AstNodeType::biOp) {}
+	std::vector<AstNode*> getSubNodes() const override { return {lhs, rhs}; }
+};
+
 struct ReturnNode final : AstNode {
 	AstNode* value= nullptr;
 
@@ -156,16 +173,16 @@ struct CallNode final : AstNode {
 	{ auto ret= listAsVec(args); ret.push_back(func); return ret; }
 };
 
-/// TokenType contains all needed values
-using BiOpType= TokenType;
+enum class QualifierType {
+	pointer
+};
 
-struct BiOpNode final : AstNode {
-	AstNode* lhs= nullptr;
-	AstNode* rhs= nullptr;
-	BiOpType opType;
+struct QualifierNode final : AstNode {
+	QualifierType qualifierType= QualifierType::pointer;
+	AstNode* target= nullptr;
 
-	BiOpNode(): AstNode(AstNodeType::biOp) {}
-	std::vector<AstNode*> getSubNodes() const override { return {lhs, rhs}; }
+	QualifierNode(): AstNode(AstNodeType::qualifier) {}
+	std::vector<AstNode*> getSubNodes() const override { return {target}; }
 };
 
 bool containsEndStatement(const AstNode& node);
