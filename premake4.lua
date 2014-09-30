@@ -25,3 +25,7 @@ solution "proto-gamelang"
   configuration "dev"
     targetname "dev"
 
+  configuration "release"
+    defines { "NDEBUG" }
+    targetname "release"
+
