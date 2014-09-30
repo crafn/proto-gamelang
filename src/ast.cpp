@@ -22,10 +22,7 @@ struct Parser {
 
 	template <typename T>
 	T* newNode()
-	{
-		context.nodes.emplace_back(new T{});
-		return static_cast<T*>(context.nodes.back().get());
-	}
+	{ return context.newNode<T>(); }
 
 	void parseCheck(bool expr, const std::string& msg)
 	{ if (!expr) log(msg); assert(expr); }

@@ -1,19 +1,46 @@
 #ifndef GAMELANG_AST_HPP
 #define GAMELANG_AST_HPP
 
+#include <cassert>
+#include <list>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "nullsafety.hpp"
 #include "token.hpp"
 
 namespace gamelang
 {
 
+template <typename T>
+std::vector<T> listAsVec(const std::list<T>& l)
+{
+	std::vector<T> v;
+	for (auto&& m : l)
+		v.emplace_back(m);
+	return v;
+}
+
 struct AstNode;
 struct AstContext {
+
+	bool hasRootNode() const { return !nodes.empty(); }
+	AstNode& getRootNode() const
+	{
+		assert(hasRootNode());
+		return *NONULL(nodes.front().get());
+	}
+
+	template <typename T>
+	T* newNode()
+	{
+		nodes.emplace_back(std::unique_ptr<T>(new T{}));
+		return static_cast<T*>(nodes.back().get());
+	}
+private:
 	/// First should be the GlobalNode
-	std::vector<std::unique_ptr<AstNode>> nodes;
+	std::list<std::unique_ptr<AstNode>> nodes;
 };
 
 enum class AstNodeType {
@@ -40,25 +67,25 @@ struct AstNode {
 };
 
 struct GlobalNode final : AstNode {
-	std::vector<AstNode*> nodes;
+	std::list<AstNode*> nodes;
 
 	GlobalNode(): AstNode(AstNodeType::global) {}
-	std::vector<AstNode*> getSubNodes() const override { return nodes; }
+	std::vector<AstNode*> getSubNodes() const override { return listAsVec(nodes); }
 };
 
 struct BlockNode final : AstNode {
 	bool structure= false;
 	AstNode* funcType= nullptr;
 	AstNode* condition= nullptr;
-	std::vector<AstNode*> nodes;
+	std::list<AstNode*> nodes;
 
 	BlockNode(): AstNode(AstNodeType::block) {}
 	std::vector<AstNode*> getSubNodes() const override
 	{
-		auto ret= nodes;
+		auto ret= listAsVec(nodes);
 		ret.push_back(funcType);
 		ret.push_back(condition);
-		return nodes;
+		return ret;
 	}
 };
 
@@ -89,7 +116,7 @@ struct ParamDeclNode final : AstNode {
 
 struct FuncTypeNode final : AstNode {
 	AstNode* returnType= nullptr;
-	std::vector<ParamDeclNode*> params;
+	std::list<ParamDeclNode*> params;
 
 	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
 	std::vector<AstNode*> getSubNodes() const override
@@ -122,11 +149,11 @@ struct ReturnNode final : AstNode {
 
 struct CallNode final : AstNode {
 	AstNode* func= nullptr;
-	std::vector<AstNode*> args;
+	std::list<AstNode*> args;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= args; ret.push_back(func); return ret; }
+	{ auto ret= listAsVec(args); ret.push_back(func); return ret; }
 };
 
 /// TokenType contains all needed values
