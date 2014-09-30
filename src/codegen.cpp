@@ -270,7 +270,7 @@ struct AstCModifier {
 			void_type->name= "void";
 
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= clashPrevention() + "self";
+			self_id->name= "self";
 
 			auto self_param_ptr_qual= context.newNode<QualifierNode>();
 			self_param_ptr_qual->qualifierType= QualifierType::pointer;
@@ -288,7 +288,7 @@ struct AstCModifier {
 			ctor_block->funcType= ctor_func_type;
 
 			auto func_id= context.newNode<IdentifierNode>();
-			func_id->name= clashPrevention() + "ctor";
+			func_id->name= clashPrevention() + "ctor_" + NONULL(block.boundTo)->name;
 
 			auto ctor_func= context.newNode<VarDeclNode>();
 			ctor_func->identifier= func_id;
