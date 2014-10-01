@@ -20,7 +20,6 @@ struct CCodeGen {
 		CondGen<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
-		CondGen<AstNodeType::paramDecl,  ParamDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
@@ -90,37 +89,36 @@ private:
 
 	void gen(const VarDeclNode& var)
 	{
-		auto& value_type= *NONULL(var.valueType);
-		
-		if (value_type.type == AstNodeType::funcType) {
-			assert(var.constant && "@todo Non-constant func vars");
-			genFuncProto(value_type, NONULL(var.identifier)->name);
-			if (var.value)
-				gen(*var.value); // Block
-		} else if (value_type.type == AstNodeType::structType) {
-			assert(var.constant && "Non-constant struct var");
-			emit("typedef struct ");
-			gen(*NONULL(var.value)); // Block
+		if (var.param) {
+			gen(*NONULL(var.valueType));
 			emit(" " + NONULL(var.identifier)->name);
 		} else {
-			// Variable
-			gen(value_type);
-			if (var.constant)
-				emit(" const");
+			auto& value_type= *NONULL(var.valueType);
+			
+			if (value_type.type == AstNodeType::funcType) {
+				assert(var.constant && "@todo Non-constant func vars");
+				genFuncProto(value_type, NONULL(var.identifier)->name);
+				if (var.value)
+					gen(*var.value); // Block
+			} else if (value_type.type == AstNodeType::structType) {
+				assert(var.constant && "Non-constant struct var");
+				emit("typedef struct ");
+				gen(*NONULL(var.value)); // Block
+				emit(" " + NONULL(var.identifier)->name);
+			} else {
+				// Ordinary variable
+				gen(value_type);
+				if (var.constant)
+					emit(" const");
 
-			emit(" " + NONULL(var.identifier)->name);
+				emit(" " + NONULL(var.identifier)->name);
 
-			if (var.value) {
-				emit(" = ");
-				gen(*var.value);
+				if (var.value) {
+					emit(" = ");
+					gen(*var.value);
+				}
 			}
 		}
-	}
-
-	void gen(const ParamDeclNode& param)
-	{
-		gen(*NONULL(param.valueType));
-		emit(" " + NONULL(param.identifier)->name);
 	}
 
 	void genFuncProto(const AstNode& node, const std::string& name)
@@ -133,7 +131,7 @@ private:
 
 		emit("(");
 		for (auto it= func.params.begin(); it != func.params.end(); ++it) {
-			const ParamDeclNode& p= *NONULL(*it);
+			const VarDeclNode& p= *NONULL(*it);
 			gen(p);
 			if (std::next(it) != func.params.end())
 				emit(", ");
@@ -196,12 +194,12 @@ private:
 /// Modifies Ast to conform C semantics
 /// This makes code generation for the CCodeGen almost trivial
 struct AstCModifier {
-	AstContext& context;
+	AstCModifier(AstContext& ctx): context(ctx) {}
 
 	void mod()
 	{ mod(context.getRootNode()); }
 
-// private
+private:
 	enum class ScopeType {
 		global,
 		structure,
@@ -210,13 +208,14 @@ struct AstCModifier {
 		plainScope
 	};
 
-	std::string clashPrevention() const { return "_cR_"; }
-
+	AstContext& context;
 	std::stack<ScopeType> scopeStack;
 	std::vector<AstNode*> globalInsertRequests;
 
 	/// Variables initialized in current struct
 	std::vector<VarDeclNode*> structInitVars;
+
+	std::string clashPrevention() const { return "_cR_"; }
 
 	void mod(AstNode& node)
 	{
@@ -237,8 +236,7 @@ struct AstCModifier {
 					++it;
 				}
 				globalInsertRequests.clear();
-			} 
-			else {
+			} else {
 				++it;
 			}
 		}
@@ -276,7 +274,8 @@ struct AstCModifier {
 			self_param_ptr_qual->qualifierType= QualifierType::pointer;
 			self_param_ptr_qual->target= block.boundTo;
 
-			auto self_param= context.newNode<ParamDeclNode>();
+			auto self_param= context.newNode<VarDeclNode>();
+			self_param->param= true;
 			self_param->identifier= self_id;
 			self_param->valueType= self_param_ptr_qual;
 
@@ -324,6 +323,17 @@ struct AstCModifier {
 			// Var is assigned inside struct
 			// -> generate constructor
 			structInitVars.push_back(&var);
+		}
+		assert(var.valueType);
+		if (var.valueType->type == AstNodeType::identifier) {
+			auto&& value_type_id= static_cast<const IdentifierNode&>(
+					*var.valueType);
+			const VarDeclNode& type_def= *NONULL(value_type_id.boundTo);
+
+			if (NONULL(type_def.valueType)->type == AstNodeType::structType) {
+				// Add constructor call for struct instantiation
+				std::cout << "ctor for  " << var.identifier->name << std::endl;
+			}
 		}
 		if (var.value) {
 			mod(*var.value);

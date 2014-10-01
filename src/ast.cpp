@@ -1,6 +1,8 @@
 // Debug
 #include <iostream>
 
+#include <map>
+
 #include "ast.hpp"
 #include "nullsafety.hpp"
 
@@ -10,9 +12,34 @@ namespace gamelang
 namespace
 {
 
+int logIndent;
+void log(const std::string& str)
+{
+	for (int i= 0; i < logIndent; ++i)
+		std::cout << "  ";
+	std::cout << str << std::endl;
+}
+
+void parseCheck(bool expr, const std::string& msg)
+{ if (!expr) log(msg); assert(expr); }
+
+/// Transforms tokens to an abstract syntax tree
 struct Parser {
+	Parser(const Tokens& t): tokens(t) {}
+
+	AstContext parse()
+	{
+		// Start parsing
+		auto root= newNode<GlobalNode>();
+		auto tok= tokens.begin();
+		while (tok != tokens.end()) {
+			root->nodes.emplace_back(parseExpr(tok));
+		}
+		return std::move(context);
+	}
+
+private:
 	const Tokens& tokens;
-	int logIndent;
 	AstContext context;
 
 	using It= Tokens::const_iterator;
@@ -23,16 +50,6 @@ struct Parser {
 	template <typename T>
 	T* newNode()
 	{ return context.newNode<T>(); }
-
-	void parseCheck(bool expr, const std::string& msg)
-	{ if (!expr) log(msg); assert(expr); }
-
-	void log(const Str& str)
-	{
-		for (int i= 0; i < logIndent; ++i)
-			std::cout << "  ";
-		std::cout << str << std::endl;
-	}
 
 	struct LogIndentGuard {
 		int& value;
@@ -83,6 +100,7 @@ struct Parser {
 
 		parseCheck(tok->type == TokenType::identifier, "Error in var decl name");
 		var->identifier= parseIdentifier(tok);
+		var->identifier->boundTo= var;
 
 		parseCheck(tok->type == TokenType::declaration, "Missing : in var decl");
 		nextToken(tok);
@@ -109,6 +127,8 @@ struct Parser {
 				var->valueType= deducedType(*var->value);
 		}
 
+		assert(var->valueType);
+
 		return var;
 	}
 
@@ -130,17 +150,20 @@ struct Parser {
 			if (tok->type == TokenType::comma)
 				nextToken(tok);
 
-			auto param= newNode<ParamDeclNode>();
+			auto param= newNode<VarDeclNode>();
+			param->param= true;
 
 			parseCheck(tok->type == TokenType::identifier,
 					"Missing identifier for func arg");
 			param->identifier= parseIdentifier(tok);
+			param->identifier->boundTo= param;
 
 			parseCheck(tok->type == TokenType::declaration,
 					"Missing : for func arg");
 			nextToken(tok);
 
 			param->valueType= parseExpr(tok, false);
+			assert(param->valueType);
 			func_type->params.push_back(param);
 		}
 		nextToken(tok);
@@ -207,6 +230,8 @@ struct Parser {
 	{
 		auto type= newNode<IdentifierNode>();
 		type->name= tok->text;
+		if (type->name == "int" || type->name == "void")
+			type->boundTo= &context.getBuiltinTypeDecl();
 		log(type->name);
 		nextToken(tok);
 		return type;
@@ -342,23 +367,120 @@ struct Parser {
 		}
 		return beginning;
 	}
-
-	AstContext parse()
-	{
-		// Start parsing
-		auto root= newNode<GlobalNode>();
-		auto tok= tokens.begin();
-		while (tok != tokens.end()) {
-			root->nodes.emplace_back(parseExpr(tok));
-		}
-		return std::move(context);
-	}
-
 };
 
+/// Ties unbound identifiers of the ast tree (making a graph)
+/// Goal is to have zero unbound identifiers after tying
+struct TieIdentifiers {
+	TieIdentifiers(AstContext& ctx): context(ctx) {}
 
+	void tie()
+	{
+		/// @todo Scan ast first for declarations and loose-end identifiers
+		///       to allow cyclic references to be resolved
+		tie(context.getRootNode());
+	}
+
+private:
+	AstContext& context;
+
+	/// @todo Take scope into account
+	std::map<std::string, VarDeclNode*> vars;
+
+	void tie(AstNode& node)
+	{
+		CondTie<AstNodeType::global,     GlobalNode>::eval(*this, node);
+		CondTie<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
+		CondTie<AstNodeType::block,      BlockNode>::eval(*this, node);
+		CondTie<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
+		CondTie<AstNodeType::funcType,   FuncTypeNode>::eval(*this, node);
+		CondTie<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
+		CondTie<AstNodeType::ret,        ReturnNode>::eval(*this, node);
+		CondTie<AstNodeType::call,       CallNode>::eval(*this, node);
+	}
+
+	void tie(GlobalNode& global)
+	{
+		for (auto&& node : global.nodes)
+			tie(*NONULL(node));
+	}
+
+	void tie(IdentifierNode& identifier)
+	{
+		if (identifier.boundTo)
+			return;
+		
+		auto it= vars.find(identifier.name);
+		parseCheck(it != vars.end(), "Unresolved identifier: " + identifier.name);
+		
+		VarDeclNode* var= it->second;
+		identifier.boundTo= var;	
+	}
+
+	void tie(BlockNode& block)
+	{
+		for (auto&& node : block.nodes)
+			tie(*NONULL(node));
+	}
+
+	void tie(VarDeclNode& var)
+	{
+		assert(NONULL(var.identifier)->boundTo &&
+				"Variable identifiers should be bound by definition");
+
+		// Loose identifiers can be bound to `var`
+		vars[NONULL(var.identifier)->name]= &var;
+
+		tie(*NONULL(var.valueType));
+		if (var.value)
+			tie(*var.value);
+	}
+
+	void tie(FuncTypeNode& func)
+	{
+		tie(*NONULL(func.returnType));
+		for (auto&& node : func.params)
+			tie(*NONULL(node));
+	}
+
+	void tie(BiOpNode& op)
+	{
+		tie(*NONULL(op.lhs));
+		tie(*NONULL(op.rhs));
+	}
+
+	void tie(ReturnNode& ret)
+	{
+		tie(*NONULL(ret.value));
+	}
+
+	void tie(CallNode& call)
+	{
+		tie(*NONULL(call.func));
+		for (auto&& arg : call.args)
+			tie(*NONULL(arg));
+	}
+
+	template <AstNodeType nodeType, typename T>
+	struct CondTie {
+		static void eval(TieIdentifiers& self, AstNode& node)
+		{ if (node.type == nodeType) self.tie(static_cast<T&>(node)); }
+	};
+};
 
 } // anonymous
+
+AstContext::AstContext()
+{
+	builtinType.reset(new BuiltinTypeNode{});
+	builtinId.reset(new IdentifierNode{});
+	builtinDecl.reset(new VarDeclNode{});
+
+	builtinId->name= "builtin";
+	builtinId->boundTo= builtinDecl.get();
+	builtinDecl->identifier= builtinId.get();
+	builtinDecl->valueType= builtinType.get();
+}
 
 bool containsEndStatement(const AstNode& node)
 {
@@ -366,7 +488,8 @@ bool containsEndStatement(const AstNode& node)
 		return true;
 
 	for (auto&& sub : node.getSubNodes()) {
-		assert(sub);
+		if (!sub)
+			continue;
 		if (containsEndStatement(*sub))
 			return true;
 	}
@@ -377,7 +500,11 @@ bool containsEndStatement(const AstNode& node)
 AstContext genAst(const Tokens& tokens)
 {
 	Parser parser{tokens};
-	return parser.parse();
+	AstContext&& ctx= parser.parse();
+
+	TieIdentifiers t{ctx};
+	t.tie();
+	return std::move(ctx);
 }
 
 } // gamelang

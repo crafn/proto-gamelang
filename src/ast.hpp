@@ -22,35 +22,14 @@ std::vector<T> listAsVec(const std::list<T>& l)
 	return v;
 }
 
-struct AstNode;
-struct AstContext {
-
-	bool hasRootNode() const { return !nodes.empty(); }
-	AstNode& getRootNode() const
-	{
-		assert(hasRootNode());
-		return *NONULL(nodes.front().get());
-	}
-
-	template <typename T>
-	T* newNode()
-	{
-		nodes.emplace_back(std::unique_ptr<T>(new T{}));
-		return static_cast<T*>(nodes.back().get());
-	}
-private:
-	/// First should be the GlobalNode
-	std::list<std::unique_ptr<AstNode>> nodes;
-};
-
 enum class AstNodeType {
 	global,
 	identifier,
 	block,
 	varDecl,
-	paramDecl,
 	funcType,
 	structType,
+	builtinType,
 	numLiteral,
 	biOp,
 	ret,
@@ -74,13 +53,18 @@ struct GlobalNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return listAsVec(nodes); }
 };
 
+struct VarDeclNode;
+/// `foobar5`
 struct IdentifierNode final : AstNode {
+	VarDeclNode* boundTo= nullptr;
+
 	std::string name;
 
 	IdentifierNode(): AstNode(AstNodeType::identifier) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+/// `{ ... }`
 struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
 
@@ -99,29 +83,23 @@ struct BlockNode final : AstNode {
 	}
 };
 
+/// `let x : int = 15`
 struct VarDeclNode final : AstNode {
 	bool constant= true;
 	IdentifierNode* identifier= nullptr;
 	AstNode* valueType= nullptr;
 	AstNode* value= nullptr;
+	bool param= false;
 
 	VarDeclNode(): AstNode(AstNodeType::varDecl) {}
 	std::vector<AstNode*> getSubNodes() const override
 	{ return {identifier, valueType, value}; }
 };
 
-struct ParamDeclNode final : AstNode {
-	IdentifierNode* identifier= nullptr;
-	AstNode* valueType= nullptr;
-
-	ParamDeclNode(): AstNode(AstNodeType::paramDecl) {}
-	std::vector<AstNode*> getSubNodes() const override
-	{ return {identifier, valueType}; }
-};
-
+/// `fn (n : int) -> void`
 struct FuncTypeNode final : AstNode {
 	AstNode* returnType= nullptr;
-	std::list<ParamDeclNode*> params;
+	std::list<VarDeclNode*> params;
 
 	FuncTypeNode(): AstNode(AstNodeType::funcType) {}
 	std::vector<AstNode*> getSubNodes() const override
@@ -133,8 +111,16 @@ struct FuncTypeNode final : AstNode {
 	}
 };
 
+/// `struct`
 struct StructTypeNode final : AstNode {
 	StructTypeNode(): AstNode(AstNodeType::structType) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
+};
+
+/// Type of `int`
+/// Used in dummy declaration `let int : builtin;`
+struct BuiltinTypeNode final : AstNode {
+	BuiltinTypeNode(): AstNode(AstNodeType::builtinType) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
@@ -157,6 +143,7 @@ struct BiOpNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {lhs, rhs}; }
 };
 
+/// `return value`
 struct ReturnNode final : AstNode {
 	AstNode* value= nullptr;
 
@@ -164,8 +151,9 @@ struct ReturnNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {value}; }
 };
 
+/// `foo(a, b, c)`
 struct CallNode final : AstNode {
-	AstNode* func= nullptr;
+	IdentifierNode* func= nullptr;
 	std::list<AstNode*> args;
 
 	CallNode(): AstNode(AstNodeType::call) {}
@@ -183,6 +171,36 @@ struct QualifierNode final : AstNode {
 
 	QualifierNode(): AstNode(AstNodeType::qualifier) {}
 	std::vector<AstNode*> getSubNodes() const override { return {target}; }
+};
+
+struct AstContext {
+	AstContext();
+
+	bool hasRootNode() const { return !nodes.empty(); }
+
+	AstNode& getRootNode() const
+	{
+		assert(hasRootNode());
+		return *NONULL(nodes.front().get());
+	}
+
+	template <typename T>
+	T* newNode()
+	{
+		nodes.emplace_back(std::unique_ptr<T>(new T{}));
+		return static_cast<T*>(nodes.back().get());
+	}
+
+	VarDeclNode& getBuiltinTypeDecl() { return *NONULL(builtinDecl.get()); }
+
+private:
+	/// First should be the GlobalNode
+	std::list<std::unique_ptr<AstNode>> nodes;
+
+	/// Dummy declaration of int and others
+	std::unique_ptr<BuiltinTypeNode> builtinType;
+	std::unique_ptr<IdentifierNode> builtinId;
+	std::unique_ptr<VarDeclNode> builtinDecl;
 };
 
 bool containsEndStatement(const AstNode& node);
