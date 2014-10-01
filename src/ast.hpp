@@ -31,6 +31,7 @@ enum class AstNodeType {
 	structType,
 	builtinType,
 	numLiteral,
+	uOp,
 	biOp,
 	ret,
 	call,
@@ -131,9 +132,22 @@ struct NumLiteralNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
-/// TokenType contains all needed values
+// TokenType contains all needed values
+using UOpType= TokenType;
+
+/// `!flag`
+struct UOpNode final : AstNode {
+	AstNode* target= nullptr;
+	UOpType opType;
+
+	UOpNode(): AstNode(AstNodeType::uOp) {}
+	std::vector<AstNode*> getSubNodes() const override { return {target}; }
+};
+
+// TokenType contains all needed values
 using BiOpType= TokenType;
 
+/// `a + b`
 struct BiOpNode final : AstNode {
 	AstNode* lhs= nullptr;
 	AstNode* rhs= nullptr;

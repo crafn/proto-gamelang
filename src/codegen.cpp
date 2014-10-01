@@ -21,6 +21,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
+		CondGen<AstNodeType::uOp,        UOpNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
 		CondGen<AstNodeType::call,       CallNode>::eval(*this, node);
@@ -144,6 +145,12 @@ private:
 		emit(literal.value);
 	}
 
+	void gen(const UOpNode& op)
+	{
+		emit(str(op.opType));
+		gen(*NONULL(op.target));
+	}
+
 	void gen(const BiOpNode& op)
 	{
 		const char* spacing= "";
@@ -211,11 +218,14 @@ private:
 	AstContext& context;
 	std::stack<ScopeType> scopeStack;
 	std::vector<AstNode*> globalInsertRequests;
+	std::vector<AstNode*> localInsertRequests;
 
 	/// Variables initialized in current struct
 	std::vector<VarDeclNode*> structInitVars;
 
 	std::string clashPrevention() const { return "_cR_"; }
+	std::string ctorName(std::string type_name) const
+	{ return clashPrevention() + "ctor_" + type_name; }
 
 	void mod(AstNode& node)
 	{
@@ -254,9 +264,19 @@ private:
 			scope_type= ScopeType::conditional;
 		scopeStack.push(scope_type);
 
-		for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
+		for (auto it= block.nodes.begin(); it != block.nodes.end();) {
 			AstNode& node= *NONULL(*it);
 			mod(node);
+
+			if (!localInsertRequests.empty()) {
+				for (auto&& req : localInsertRequests) {
+					block.nodes.insert(std::next(it), req);
+					++it;
+				}
+				localInsertRequests.clear();
+			} else {
+				++it;
+			}
 		}
 
 		scopeStack.pop();
@@ -287,7 +307,7 @@ private:
 			ctor_block->funcType= ctor_func_type;
 
 			auto func_id= context.newNode<IdentifierNode>();
-			func_id->name= clashPrevention() + "ctor_" + NONULL(block.boundTo)->name;
+			func_id->name= ctorName(NONULL(block.boundTo)->name);
 
 			auto ctor_func= context.newNode<VarDeclNode>();
 			ctor_func->identifier= func_id;
@@ -325,6 +345,7 @@ private:
 			structInitVars.push_back(&var);
 		}
 		assert(var.valueType);
+		/// @todo Type can be result of an expression
 		if (var.valueType->type == AstNodeType::identifier) {
 			auto&& value_type_id= static_cast<const IdentifierNode&>(
 					*var.valueType);
@@ -332,7 +353,19 @@ private:
 
 			if (NONULL(type_def.valueType)->type == AstNodeType::structType) {
 				// Add constructor call for struct instantiation
-				std::cout << "ctor for  " << var.identifier->name << std::endl;
+
+				auto ctor_id= context.newNode<IdentifierNode>();
+				ctor_id->name= ctorName(value_type_id.name);
+
+				auto ptr_to_var= context.newNode<UOpNode>();
+				ptr_to_var->opType= UOpType::ref;
+				ptr_to_var->target= var.identifier;
+
+				auto ctor_call= context.newNode<CallNode>();
+				ctor_call->func= ctor_id;
+				ctor_call->args.push_back(ptr_to_var);
+
+				localInsertRequests.emplace_back(ctor_call);
 			}
 		}
 		if (var.value) {

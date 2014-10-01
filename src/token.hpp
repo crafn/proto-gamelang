@@ -25,6 +25,7 @@ enum class TokenType {
 	add, // +
 	sub, // -
 	dot, // .
+	ref, // &
 	unknown
 };
 
@@ -48,6 +49,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::add: return "add";
 		case TokenType::sub: return "sub";
 		case TokenType::dot: return "dot";
+		case TokenType::ref: return "ref";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -73,6 +75,7 @@ static const char* str(TokenType type)
 		case TokenType::add: return "+";
 		case TokenType::sub: return "-";
 		case TokenType::dot: return ".";
+		case TokenType::ref: return "&";
 		case TokenType::unknown:
 		default: return "???";
 	}

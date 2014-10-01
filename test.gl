@@ -1,4 +1,4 @@
-let g_value : int = 11;
+let g_value : int = 8;
 
 let fibo := fn (n : int) -> int
 {
@@ -13,8 +13,8 @@ let fibo := fn (n : int) -> int
 
 let Kana := struct
 {
-	var age : int = 0;
-	var mass : int = fibo(5);
+	var age : int = fibo(g_value);
+	var mass : int = 0;
 }
 
 let main := fn () -> int
@@ -22,8 +22,6 @@ let main := fn () -> int
 	var kana : Kana;
 	kana.mass = 1995;
 
-	var a : int;
-	a = fibo(g_value + 1);
-	return a;
+	return kana.age;
 }
 
