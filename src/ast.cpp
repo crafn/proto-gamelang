@@ -378,6 +378,7 @@ private:
 				case TokenType::add:
 				case TokenType::sub:
 				case TokenType::equals:
+				case TokenType::nequals:
 				{
 					auto op_type= tok->type;
 					nextToken(tok);

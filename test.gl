@@ -22,7 +22,7 @@ let gotoExample := fn () -> int
 	var i : int = 0;
 	test_label:
 		i = i + 1;	
-		if (i == 1) {
+		if (i != 99) {
 			goto test_label;
 		}
 	return i;
@@ -33,6 +33,6 @@ let main := fn () -> int
 	var kana : Kana;
 	kana.mass = 1995;
 
-	return kana.age;
+	return gotoExample();
 }
 

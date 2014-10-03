@@ -74,6 +74,8 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 		return TokenType::rightArrow;
 	if (ch1 == '=' && ch2 == '=')
 		return TokenType::equals;
+	if (ch1 == '!' && ch2 == '=')
+		return TokenType::nequals;
 
 	return TokenType::unknown;
 }
