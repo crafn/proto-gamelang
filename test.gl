@@ -17,6 +17,17 @@ let Kana := struct
 	var mass : int = 0;
 }
 
+let gotoExample := fn () -> int
+{
+	var i : int = 0;
+	test_label:
+		i = i + 1;	
+		if (i == 1) {
+			goto test_label;
+		}
+	return i;
+}
+
 let main := fn () -> int
 {
 	var kana : Kana;

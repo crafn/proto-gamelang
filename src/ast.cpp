@@ -237,16 +237,29 @@ private:
 		return type;
 	}
 
-	ReturnNode* parseReturn(It& tok)
+	CtrlStatementNode* parseCtrlStatement(	It& tok,
+											std::string text,
+											CtrlStatementType t)
 	{
-		assert(tok->text == "return");
+		assert(tok->text == text);
 		nextToken(tok);
 
-		auto ret= newNode<ReturnNode>();
+		auto ret= newNode<CtrlStatementNode>();
+		ret->statementType= t;
 		if (tok->type != TokenType::endStatement) {
 			ret->value= parseExpr(tok);
 		}
 		return ret;
+	}
+	
+	CtrlStatementNode* parseReturn(It& tok)
+	{
+		return parseCtrlStatement(tok, "return", CtrlStatementType::return_);
+	}
+
+	CtrlStatementNode* parseGoto(It& tok)
+	{
+		return parseCtrlStatement(tok, "goto", CtrlStatementType::goto_);
 	}
 
 	AstNode* parseIfExpr(It& tok)
@@ -298,6 +311,8 @@ private:
 				return block;
 			} else if (tok->text == "return") {
 				return parseReturn(tok);
+			} else if (tok->text == "goto") {
+				return parseGoto(tok);
 			} else {
 				return parseRestExpr(parseIdentifier(tok), tok, greedy);
 			}
@@ -329,6 +344,16 @@ private:
 		/// @todo Don't return if parsing in brackets
 		if (tok->type == TokenType::closeParen) {
 			return beginning;
+		}
+
+		// `this_is_label:`
+		if (	beginning->type == AstNodeType::identifier &&
+				tok->type == TokenType::declaration) {
+			nextToken(tok);
+			auto label= newNode<LabelNode>();
+			label->identifier= static_cast<IdentifierNode*>(beginning);
+			label->identifier->boundTo= label;
+			return label;
 		}
 
 		if (	beginning->type == AstNodeType::identifier &&
@@ -385,18 +410,20 @@ private:
 	AstContext& context;
 
 	/// @todo Take scope into account
-	std::map<std::string, VarDeclNode*> vars;
+	/// Can be var decls or labels
+	std::map<std::string, AstNode*> idTargets;
 
 	void tie(AstNode& node)
 	{
-		CondTie<AstNodeType::global,     GlobalNode>::eval(*this, node);
-		CondTie<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
-		CondTie<AstNodeType::block,      BlockNode>::eval(*this, node);
-		CondTie<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
-		CondTie<AstNodeType::funcType,   FuncTypeNode>::eval(*this, node);
-		CondTie<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
-		CondTie<AstNodeType::ret,        ReturnNode>::eval(*this, node);
-		CondTie<AstNodeType::call,       CallNode>::eval(*this, node);
+		CondTie<AstNodeType::global,        GlobalNode>::eval(*this, node);
+		CondTie<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
+		CondTie<AstNodeType::block,         BlockNode>::eval(*this, node);
+		CondTie<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
+		CondTie<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node);
+		CondTie<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
+		CondTie<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
+		CondTie<AstNodeType::call,          CallNode>::eval(*this, node);
+		CondTie<AstNodeType::label,         LabelNode>::eval(*this, node);
 	}
 
 	void tie(GlobalNode& global)
@@ -410,11 +437,11 @@ private:
 		if (identifier.boundTo)
 			return;
 		
-		auto it= vars.find(identifier.name);
-		parseCheck(it != vars.end(), "Unresolved identifier: " + identifier.name);
+		auto it= idTargets.find(identifier.name);
+		parseCheck(it != idTargets.end(), "Unresolved identifier: " + identifier.name);
 		
-		VarDeclNode* var= it->second;
-		identifier.boundTo= var;	
+		AstNode* var= it->second;
+		identifier.boundTo= var;
 	}
 
 	void tie(BlockNode& block)
@@ -429,7 +456,7 @@ private:
 				"Variable identifiers should be bound by definition");
 
 		// Loose identifiers can be bound to `var`
-		vars[NONULL(var.identifier)->name]= &var;
+		idTargets[NONULL(var.identifier)->name]= &var;
 
 		tie(*NONULL(var.valueType));
 		if (var.value)
@@ -449,7 +476,7 @@ private:
 		tie(*NONULL(op.rhs));
 	}
 
-	void tie(ReturnNode& ret)
+	void tie(CtrlStatementNode& ret)
 	{
 		tie(*NONULL(ret.value));
 	}
@@ -459,6 +486,12 @@ private:
 		tie(*NONULL(call.func));
 		for (auto&& arg : call.args)
 			tie(*NONULL(arg));
+	}
+
+	void tie(LabelNode& label)
+	{
+		idTargets[NONULL(label.identifier)->name]= &label;
+		tie(*NONULL(label.identifier));
 	}
 
 	template <AstNodeType nodeType, typename T>

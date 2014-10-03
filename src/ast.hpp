@@ -33,9 +33,10 @@ enum class AstNodeType {
 	numLiteral,
 	uOp,
 	biOp,
-	ret,
+	ctrlStatement, // return, break, ...
 	call,
-	qualifier
+	qualifier,
+	label
 };
 
 struct AstNode {
@@ -45,6 +46,7 @@ struct AstNode {
 
 	AstNode(AstNodeType t): type(t) {}
 	virtual std::vector<AstNode*> getSubNodes() const = 0;
+	virtual ~AstNode() {}
 };
 
 struct GlobalNode final : AstNode {
@@ -57,7 +59,8 @@ struct GlobalNode final : AstNode {
 struct VarDeclNode;
 /// `foobar5`
 struct IdentifierNode final : AstNode {
-	VarDeclNode* boundTo= nullptr;
+	/// Can be VarDeclNode or IdentifierNode (for labels)
+	AstNode* boundTo= nullptr;
 
 	std::string name;
 
@@ -157,11 +160,17 @@ struct BiOpNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {lhs, rhs}; }
 };
 
-/// `return value`
-struct ReturnNode final : AstNode {
+enum class CtrlStatementType {
+	return_,
+	goto_
+};
+
+/// `return value`, `break`
+struct CtrlStatementNode final : AstNode {
+	CtrlStatementType statementType= CtrlStatementType::return_;
 	AstNode* value= nullptr;
 
-	ReturnNode(): AstNode(AstNodeType::ret) {}
+	CtrlStatementNode(): AstNode(AstNodeType::ctrlStatement) {}
 	std::vector<AstNode*> getSubNodes() const override { return {value}; }
 };
 
@@ -185,6 +194,12 @@ struct QualifierNode final : AstNode {
 
 	QualifierNode(): AstNode(AstNodeType::qualifier) {}
 	std::vector<AstNode*> getSubNodes() const override { return {target}; }
+};
+
+struct LabelNode final : AstNode {
+	IdentifierNode* identifier= nullptr;
+	LabelNode(): AstNode(AstNodeType::label) {}
+	std::vector<AstNode*> getSubNodes() const override { return {identifier}; }
 };
 
 struct AstContext {

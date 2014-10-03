@@ -16,16 +16,17 @@ struct CCodeGen {
 
 	void gen(const AstNode& node)
 	{
-		CondGen<AstNodeType::global,     GlobalNode>::eval(*this, node);
-		CondGen<AstNodeType::block,      BlockNode>::eval(*this, node);
-		CondGen<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
-		CondGen<AstNodeType::identifier, IdentifierNode>::eval(*this, node);
-		CondGen<AstNodeType::numLiteral, NumLiteralNode>::eval(*this, node);
-		CondGen<AstNodeType::uOp,        UOpNode>::eval(*this, node);
-		CondGen<AstNodeType::biOp,       BiOpNode>::eval(*this, node);
-		CondGen<AstNodeType::ret,        ReturnNode>::eval(*this, node);
-		CondGen<AstNodeType::call,       CallNode>::eval(*this, node);
-		CondGen<AstNodeType::qualifier,  QualifierNode>::eval(*this, node);
+		CondGen<AstNodeType::global,        GlobalNode>::eval(*this, node);
+		CondGen<AstNodeType::block,         BlockNode>::eval(*this, node);
+		CondGen<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
+		CondGen<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
+		CondGen<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node);
+		CondGen<AstNodeType::uOp,           UOpNode>::eval(*this, node);
+		CondGen<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
+		CondGen<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
+		CondGen<AstNodeType::call,          CallNode>::eval(*this, node);
+		CondGen<AstNodeType::qualifier,     QualifierNode>::eval(*this, node);
+		CondGen<AstNodeType::label,         LabelNode>::eval(*this, node);
 	}
 
 private:
@@ -163,9 +164,14 @@ private:
 		gen(*NONULL(op.rhs));
 	}
 
-	void gen(const ReturnNode& ret)
+	void gen(const CtrlStatementNode& ret)
 	{
-		emit("return ");
+		switch (ret.statementType) {
+			case CtrlStatementType::return_: emit("return "); break;
+			case CtrlStatementType::goto_: emit("goto "); break;
+			default: emit("unknown_ctrl_statement");
+		}
+	
 		if (ret.value)
 			gen(*ret.value);
 	}
@@ -189,6 +195,12 @@ private:
 		gen(*NONULL(qual.target));
 		if (qual.qualifierType == QualifierType::pointer)
 			emit("*");
+	}
+
+	void gen(const LabelNode& label)
+	{
+		gen(*NONULL(label.identifier));
+		emit(":");
 	}
 
 	template <AstNodeType nodeType, typename T>
@@ -345,15 +357,15 @@ private:
 			structInitVars.push_back(&var);
 		}
 		assert(var.valueType);
-		/// @todo Type can be result of an expression
+
+		// Add constructor call
 		if (var.valueType->type == AstNodeType::identifier) {
 			auto&& value_type_id= static_cast<const IdentifierNode&>(
 					*var.valueType);
-			const VarDeclNode& type_def= *NONULL(value_type_id.boundTo);
+
+			auto& type_def= static_cast<VarDeclNode&>(*NONULL(value_type_id.boundTo));
 
 			if (NONULL(type_def.valueType)->type == AstNodeType::structType) {
-				// Add constructor call for struct instantiation
-
 				auto ctor_id= context.newNode<IdentifierNode>();
 				ctor_id->name= ctorName(value_type_id.name);
 
