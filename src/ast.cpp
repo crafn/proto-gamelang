@@ -518,7 +518,7 @@ private:
 			return;
 		
 		/// @todo Remove hack
-		if (identifier.name == "malloc")
+		if (identifier.name == "malloc" || identifier.name == "rand")
 			return;
 
 		auto it= idTargets.find(identifier.name);
