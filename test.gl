@@ -30,9 +30,8 @@ let gotoExample := fn () -> int
 
 let main := fn () -> int
 {
-	var kana : Kana;
+	var kana : Kana; // Ctor is called
 	kana.mass = 1995;
-
-	return gotoExample();
+	return kana.age;
 }
 

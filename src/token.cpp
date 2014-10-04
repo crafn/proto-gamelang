@@ -10,6 +10,9 @@ namespace {
 bool whitespace(char ch)
 { return ch == ' ' || ch == '\t' || ch == '\n'; }
 
+bool linebreak(char ch)
+{ return ch == '\n'; }
+
 bool number(char ch)
 { return ch >= '0' && ch <= '9'; }
 
@@ -76,6 +79,8 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 		return TokenType::equals;
 	if (ch1 == '!' && ch2 == '=')
 		return TokenType::nequals;
+	if (ch1 == '/' && ch2 == '/')
+		return TokenType::comment;
 
 	return TokenType::unknown;
 }
@@ -125,15 +130,15 @@ Tokens tokenize(const char* filepath)
 		char* next= contents;
 		char* tok_begin= contents;
 		char const* end= contents + contents_size;
-		auto commit= [&tokens] (char* b, char* e)
+		auto commit= [&tokens, end] (char* b, char* e)
 		{
 			if (e > b) {
+				bool last_on_line= e + 1 < end && linebreak(*e);
 				std::string text(b, e);
 				TokenType type= tokenType(text);
-				tokens.emplace_back(Token{type, std::move(text)});
+				tokens.emplace_back(Token{type, std::move(text), last_on_line});
 			}
 		};
-
 		while (next < end && tok_begin < end) {
 			if (identifierChar(*next)) {
 				if (	tok_begin + 1 == next &&

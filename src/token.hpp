@@ -27,6 +27,7 @@ enum class TokenType {
 	sub, // -
 	dot, // .
 	ref, // &
+	comment, // //
 	unknown
 };
 
@@ -52,6 +53,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::sub: return "sub";
 		case TokenType::dot: return "dot";
 		case TokenType::ref: return "ref";
+		case TokenType::comment: return "comment";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -79,6 +81,7 @@ static const char* str(TokenType type)
 		case TokenType::sub: return "-";
 		case TokenType::dot: return ".";
 		case TokenType::ref: return "&";
+		case TokenType::comment: return "//";
 		case TokenType::unknown:
 		default: return "???";
 	}
@@ -87,6 +90,7 @@ static const char* str(TokenType type)
 struct Token {
 	TokenType type;
 	std::string text;
+	bool lastOnLine;
 };
 
 using Tokens= std::vector<Token>;

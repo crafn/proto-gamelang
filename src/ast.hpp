@@ -33,10 +33,11 @@ enum class AstNodeType {
 	numLiteral,
 	uOp,
 	biOp,
-	ctrlStatement, // return, break, ...
+	ctrlStatement,
 	call,
 	qualifier,
-	label
+	label,
+	comment
 };
 
 struct AstNode {
@@ -200,6 +201,12 @@ struct LabelNode final : AstNode {
 	IdentifierNode* identifier= nullptr;
 	LabelNode(): AstNode(AstNodeType::label) {}
 	std::vector<AstNode*> getSubNodes() const override { return {identifier}; }
+};
+
+struct CommentNode final : AstNode {
+	std::string	text;
+	CommentNode(): AstNode(AstNodeType::comment) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
 struct AstContext {

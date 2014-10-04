@@ -251,7 +251,7 @@ private:
 		}
 		return ret;
 	}
-	
+
 	CtrlStatementNode* parseReturn(It& tok)
 	{
 		return parseCtrlStatement(tok, "return", CtrlStatementType::return_);
@@ -276,6 +276,20 @@ private:
 		nextToken(tok);
 
 		return expr;
+	}
+
+	CommentNode* parseComment(It& tok)
+	{
+		auto comment= newNode<CommentNode>();
+
+		while (!tok->lastOnLine) {
+			comment->text += tok->text + " ";
+
+			nextToken(tok);
+		}
+		advance(tok);
+
+		return comment;
 	}
 
 	/// greedy: parse as much as possible
@@ -320,6 +334,8 @@ private:
 			return parseBlock(tok);
 		} else if (tok->type == TokenType::number) {
 			return parseRestExpr(parseNumLiteral(tok), tok, greedy);
+		} else if (tok->type == TokenType::comment) {
+			return parseComment(tok);
 		}
 
 		parseCheck(false, "Broken expression at " + tok->text);

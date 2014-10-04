@@ -16,7 +16,9 @@ int main(int argc, const char* argv[])
 	std::cout << "*** Tokens ***\n";
 	auto&& tokens= gamelang::tokenize(filepath);
 	for (auto&& token : tokens) {
-		std::cout << token.text << "\t" << enumStr(token.type) << std::endl;
+		std::cout	<< token.text << "\t"
+					<< enumStr(token.type) << " "
+					<< token.lastOnLine << std::endl;
 	}
 
 	std::cout << "*** AST ***\n";
