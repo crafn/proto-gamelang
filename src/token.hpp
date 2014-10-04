@@ -50,7 +50,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::closeBlock: return "closeBlock";
 		case TokenType::openSquare: return "openSquare";
 		case TokenType::closeSquare: return "closeSquare";
-		case TokenType::rightArrow: return "yields";
+		case TokenType::rightArrow: return "rightArrow";
 		case TokenType::equals: return "equals";
 		case TokenType::nequals: return "nequals";
 		case TokenType::less: return "less";

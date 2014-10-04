@@ -329,6 +329,17 @@ private:
 		return op;
 	}
 
+	BiOpNode* parseBiOp(It& tok, AstNode& lhs)
+	{
+		auto op_type= tok->type;
+		nextToken(tok);
+		auto op= newNode<BiOpNode>();
+		op->opType= op_type;
+		op->lhs= &lhs;
+		op->rhs= parseExpr(tok);
+		return op;
+	}
+
 	CommentNode* parseComment(It& tok)
 	{
 		auto comment= newNode<CommentNode>();
@@ -440,14 +451,9 @@ private:
 			return parseRestExpr(call, tok, greedy);
 		}
 
-		if (tok->type == TokenType::dot) {
-			auto op_type= tok->type;
-			nextToken(tok);
-			auto op= newNode<BiOpNode>();
-			op->opType= BiOpType::dot;
-			op->lhs= beginning;
-			op->rhs= parseExpr(tok);
-			return op;
+		if (	tok->type == TokenType::dot || 
+				tok->type == TokenType::rightArrow) {
+			return parseBiOp(tok, *NONULL(beginning));
 		}
 
 		if (greedy) {
@@ -460,15 +466,7 @@ private:
 				case TokenType::nequals:
 				case TokenType::less:
 				case TokenType::greater:
-				{
-					auto op_type= tok->type;
-					nextToken(tok);
-					auto op= newNode<BiOpNode>();
-					op->opType= op_type;
-					op->lhs= beginning;
-					op->rhs= parseExpr(tok);
-					return op;
-				}
+					return parseBiOp(tok, *NONULL(beginning));
 				default:;
 			}
 		}
