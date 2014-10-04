@@ -455,6 +455,7 @@ private:
 				case TokenType::assign:
 				case TokenType::add:
 				case TokenType::sub:
+				case TokenType::mul:
 				case TokenType::equals:
 				case TokenType::nequals:
 				case TokenType::less:
