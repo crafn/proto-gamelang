@@ -52,6 +52,7 @@ private:
 
 	void gen(const GlobalNode& global)
 	{
+		emit("#include <stdlib.h>\n");
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
 			emit(";\n");

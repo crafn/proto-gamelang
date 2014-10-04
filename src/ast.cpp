@@ -519,6 +519,10 @@ private:
 		if (identifier.boundTo)
 			return;
 		
+		/// @todo Remove hack
+		if (identifier.name == "malloc")
+			return;
+
 		auto it= idTargets.find(identifier.name);
 		parseCheck(it != idTargets.end(), "Unresolved identifier: " + identifier.name);
 		
