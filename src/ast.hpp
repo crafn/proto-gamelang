@@ -75,6 +75,7 @@ struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
 
 	bool structure= false;
+	bool loop= false; // Defined with `loop` keyword
 	AstNode* funcType= nullptr;
 	AstNode* condition= nullptr;
 	std::list<AstNode*> nodes;
@@ -169,7 +170,8 @@ struct BiOpNode final : AstNode {
 
 enum class CtrlStatementType {
 	return_,
-	goto_
+	goto_,
+	break_
 };
 
 /// `return value`, `break`

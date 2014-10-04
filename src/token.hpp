@@ -23,6 +23,8 @@ enum class TokenType {
 	rightArrow, // ->
 	equals, // ==
 	nequals, // !=
+	less, // <
+	greater, // >
 	add, // +
 	sub, // -
 	dot, // .
@@ -51,6 +53,8 @@ static const char* enumStr(TokenType type)
 		case TokenType::rightArrow: return "yields";
 		case TokenType::equals: return "equals";
 		case TokenType::nequals: return "nequals";
+		case TokenType::less: return "less";
+		case TokenType::greater: return "greater";
 		case TokenType::add: return "add";
 		case TokenType::sub: return "sub";
 		case TokenType::dot: return "dot";
@@ -81,6 +85,8 @@ static const char* str(TokenType type)
 		case TokenType::rightArrow: return "->";
 		case TokenType::equals: return "==";
 		case TokenType::nequals: return "!=";
+		case TokenType::less: return "<";
+		case TokenType::greater: return ">";
 		case TokenType::add: return "+";
 		case TokenType::sub: return "-";
 		case TokenType::dot: return ".";

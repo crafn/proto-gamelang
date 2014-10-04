@@ -264,19 +264,20 @@ private:
 		ret->statementType= t;
 		if (tok->type != TokenType::endStatement) {
 			ret->value= parseExpr(tok);
+		} else {
+			advance(tok);
 		}
 		return ret;
 	}
 
 	CtrlStatementNode* parseReturn(It& tok)
-	{
-		return parseCtrlStatement(tok, "return", CtrlStatementType::return_);
-	}
+	{ return parseCtrlStatement(tok, "return", CtrlStatementType::return_); }
 
 	CtrlStatementNode* parseGoto(It& tok)
-	{
-		return parseCtrlStatement(tok, "goto", CtrlStatementType::goto_);
-	}
+	{ return parseCtrlStatement(tok, "goto", CtrlStatementType::goto_); }
+
+	CtrlStatementNode* parseBreak(It& tok)
+	{ return parseCtrlStatement(tok, "break", CtrlStatementType::break_); }
 
 	AstNode* parseIfExpr(It& tok)
 	{
@@ -364,9 +365,13 @@ private:
 				}
 			} else if (tok->text == "if") {
 				auto expr= parseIfExpr(tok);
-				/// @todo Implicit block
 				auto block= parseBlock(tok);
 				block->condition= expr;
+				return block;
+			} else if (tok->text == "loop") {
+				nextToken(tok);
+				auto block= parseBlock(tok);
+				block->loop= true;
 				return block;
 			} else if (tok->text == "struct") {
 				nextToken(tok);
@@ -377,6 +382,8 @@ private:
 				return parseReturn(tok);
 			} else if (tok->text == "goto") {
 				return parseGoto(tok);
+			} else if (tok->text == "break") {
+				return parseBreak(tok);
 			} else if (tok->text == "null") {
 				return parseRestExpr(parseNullLiteral(tok), tok, greedy);
 			} else {
@@ -450,6 +457,8 @@ private:
 				case TokenType::sub:
 				case TokenType::equals:
 				case TokenType::nequals:
+				case TokenType::less:
+				case TokenType::greater:
 				{
 					auto op_type= tok->type;
 					nextToken(tok);
@@ -550,7 +559,8 @@ private:
 
 	void tie(CtrlStatementNode& ret)
 	{
-		tie(*NONULL(ret.value));
+		if (ret.value)
+			tie(*ret.value);
 	}
 
 	void tie(CallNode& call)

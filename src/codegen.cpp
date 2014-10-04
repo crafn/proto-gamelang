@@ -71,6 +71,10 @@ private:
 			emit(")");
 		}
 
+		if (block.loop) {
+			emit("while (1)");
+		}
+
 		emit("\n");
 		emit("{\n");
 		{ auto&& indent_guard= indentGuard();
@@ -176,6 +180,7 @@ private:
 		switch (ret.statementType) {
 			case CtrlStatementType::return_: emit("return "); break;
 			case CtrlStatementType::goto_: emit("goto "); break;
+			case CtrlStatementType::break_: emit("break"); break;
 			default: emit("unknown_ctrl_statement");
 		}
 	
