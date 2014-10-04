@@ -31,6 +31,7 @@ enum class AstNodeType {
 	structType,
 	builtinType,
 	numLiteral,
+	nullLiteral,
 	uOp,
 	biOp,
 	ctrlStatement,
@@ -133,6 +134,11 @@ struct NumLiteralNode final : AstNode {
 	std::string value;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
+};
+
+struct NullLiteralNode final : AstNode {
+	NullLiteralNode(): AstNode(AstNodeType::nullLiteral) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 

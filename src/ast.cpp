@@ -105,7 +105,7 @@ private:
 		parseCheck(tok->type == TokenType::declaration, "Missing : in var decl");
 		nextToken(tok);
 
-		if (tok->type == TokenType::identifier) { // Explicit type
+		if (tok->type != TokenType::assign) { // Explicit type
 			log(":");
 			var->valueType= parseExpr(tok, false);
 		}
@@ -127,6 +127,14 @@ private:
 				var->valueType= deducedType(*var->value);
 		}
 
+		/// @todo Add these
+		/*if (var->value)
+			parseCheck(	var->value->endStatement,
+						"Missing ; after var decl: " + var->identifier->name);
+		else if (var->valueType)
+			parseCheck(	var->valueType->endStatement,
+						"Missing ; after var decl: " + var->identifier->name);
+		*/
 		assert(var->valueType);
 
 		return var;
@@ -226,6 +234,14 @@ private:
 		return literal;
 	}
 
+	NullLiteralNode* parseNullLiteral(It& tok)
+	{
+		auto literal= newNode<NullLiteralNode>();
+		log("null");
+		nextToken(tok);
+		return literal;
+	}
+
 	IdentifierNode* parseIdentifier(It& tok)
 	{
 		auto type= newNode<IdentifierNode>();
@@ -278,6 +294,40 @@ private:
 		return expr;
 	}
 
+	bool qualifierToken(TokenType t)
+	{ return t == TokenType::hat; }
+
+	QualifierNode* parseQualifiedType(It& tok)
+	{
+		auto qualifier= newNode<QualifierNode>();
+		if (tok->type == TokenType::hat) {
+			qualifier->qualifierType= QualifierType::pointer;
+		} else {
+			assert(0 && "Unknown qualifier token");
+		}
+		nextToken(tok);
+
+		qualifier->target= parseExpr(tok, false);
+		return qualifier;
+	}
+
+	bool uOpToken(TokenType t)
+	{ return t == TokenType::ref; }
+
+	UOpNode* parseUOp(It& tok)
+	{
+		auto op= newNode<UOpNode>();
+		if (tok->type == TokenType::ref) {
+			op->opType= UOpType::ref;
+		} else {
+			assert(0 && "Unknown UOp token");
+		}
+		nextToken(tok);
+
+		op->target= parseExpr(tok, false);
+		return op;
+	}
+
 	CommentNode* parseComment(It& tok)
 	{
 		auto comment= newNode<CommentNode>();
@@ -327,6 +377,8 @@ private:
 				return parseReturn(tok);
 			} else if (tok->text == "goto") {
 				return parseGoto(tok);
+			} else if (tok->text == "null") {
+				return parseRestExpr(parseNullLiteral(tok), tok, greedy);
 			} else {
 				return parseRestExpr(parseIdentifier(tok), tok, greedy);
 			}
@@ -336,8 +388,11 @@ private:
 			return parseRestExpr(parseNumLiteral(tok), tok, greedy);
 		} else if (tok->type == TokenType::comment) {
 			return parseComment(tok);
+		} else if (qualifierToken(tok->type)) {
+			return parseQualifiedType(tok);
+		} else if (uOpToken(tok->type)) {
+			return parseUOp(tok);
 		}
-
 		parseCheck(false, "Broken expression at " + tok->text);
 	}
 

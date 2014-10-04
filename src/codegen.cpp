@@ -21,6 +21,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node);
+		CondGen<AstNodeType::nullLiteral,   NullLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::uOp,           UOpNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
@@ -104,9 +105,10 @@ private:
 					gen(*var.value); // Block
 			} else if (value_type.type == AstNodeType::structType) {
 				assert(var.constant && "Non-constant struct var");
-				emit("typedef struct ");
+				const std::string struct_name= NONULL(var.identifier)->name;
+				emit("typedef struct " + struct_name + " " + struct_name + ";\n");
+				emit("struct " + struct_name);
 				gen(*NONULL(var.value)); // Block
-				emit(" " + NONULL(var.identifier)->name);
 			} else {
 				// Ordinary variable
 				gen(value_type);
@@ -144,6 +146,11 @@ private:
 	void gen(const NumLiteralNode& literal)
 	{
 		emit(literal.value);
+	}
+
+	void gen(const NullLiteralNode& literal)
+	{
+		emit("0");
 	}
 
 	void gen(const UOpNode& op)
