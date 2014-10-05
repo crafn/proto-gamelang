@@ -27,8 +27,13 @@ let gotoExample := fn () -> int
 	return i;
 };
 
+let foo := fn (a : int, b : int, c : int) -> void {};
+
 let main := fn () -> int
 {
+	// Named argument test
+	foo(.c= 17, .a= 1, 8);
+
 	var kana : Kana; // Ctor is called
 	kana.mass = 1995;
 	return kana.age;

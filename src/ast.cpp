@@ -21,7 +21,12 @@ void log(const std::string& str)
 }
 
 void parseCheck(bool expr, const std::string& msg)
-{ if (!expr) log(msg); assert(expr); }
+{
+	if (!expr)
+		log(msg);
+	/// @todo Proper error messaging
+	assert(expr);
+}
 
 /// Transforms tokens to an abstract syntax tree
 struct Parser {
@@ -199,11 +204,30 @@ private:
 		auto call= newNode<CallNode>();
 		call->func= &identifier;
 		while (tok->type != TokenType::closeParen) {
+			if (tok->type == TokenType::dot) { 
+				// Named argument
+
+				nextToken(tok);
+				parseCheck(	tok->type == TokenType::identifier,
+							"Named argument not an identifier");
+				call->namedArgs.emplace_back(tok->text);
+				nextToken(tok);
+
+				parseCheck(	tok->type == TokenType::assign,
+							"Missing `=` when specifying named argument: "
+								+ call->namedArgs.back());
+				nextToken(tok);
+			} else {
+				// Ordinary argument - empty string for name
+				call->namedArgs.emplace_back();	
+			}
+			
 			call->args.push_back(parseExpr(tok));
 
 			if (tok->type == TokenType::comma)
 				nextToken(tok);
 		}
+		assert(call->args.size() == call->namedArgs.size());
 		nextToken(tok);
 
 		return call;
@@ -576,9 +600,75 @@ private:
 
 	void tie(CallNode& call)
 	{
+		auto routeArgsToParams= [] (const std::vector<std::string>& names,
+									const std::list<VarDeclNode*>& params)
+								-> std::vector<int>
+		{
+			assert(names.size() == params.size());
+			std::vector<int> routing; // routing[arg_i] == param_i
+			routing.resize(names.size(), -1);
+			std::vector<bool> routed_params;
+			routed_params.resize(names.size());
+
+			// Route named args
+			for (std::size_t i= 0; i < names.size(); ++i) {
+				if (names[i].empty())
+					continue;
+
+				bool found= false;
+				std::size_t param_i= 0;
+				for (auto&& param : params) {
+					if (	NONULL(NONULL(param)->identifier)->name
+							== names[i]) {
+						routing[i]= param_i;
+						routed_params[param_i]= true;
+						found= true;
+						break;
+					}
+					++param_i;
+				}
+				parseCheck(found, "Named param not found: " + names[i]);
+			}
+
+			// Route ordinary args
+			int next_param_i= 0;
+			for (std::size_t i= 0; i < names.size(); ++i) {
+				if (!names[i].empty())
+					continue;
+				
+				while (routed_params[next_param_i] == true)
+					++next_param_i;
+
+				assert(next_param_i < names.size());
+				assert(routing[i] == -1);
+				routing[i]= next_param_i;
+				routed_params[next_param_i]= true;
+			}
+			
+			for (auto&& r : routing) {
+				assert(r != -1);
+				assert(r < names.size());
+			}
+
+			return routing;
+		};
+
 		tie(*NONULL(call.func));
-		for (auto&& arg : call.args)
-			tie(*NONULL(arg));
+		
+		// Obtain FuncTypeNode to route arguments
+		auto func_id_bound= NONULL(call.func)->boundTo;
+		assert(NONULL(func_id_bound)->type == AstNodeType::varDecl);
+		auto var_decl= static_cast<VarDeclNode*>(func_id_bound);
+		assert(NONULL(var_decl)->valueType->type == AstNodeType::funcType);
+		auto func_type= NONULL(static_cast<FuncTypeNode*>(var_decl->valueType));
+
+		for (auto&& arg : call.args) {
+			tie(*NONULL(arg)); 
+		}
+
+		call.argRouting= routeArgsToParams(call.namedArgs, func_type->params);
+		assert(call.argRouting.size() == call.namedArgs.size());
+		assert(call.argRouting.size() == call.args.size());
 	}
 
 	void tie(LabelNode& label)

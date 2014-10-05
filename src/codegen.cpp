@@ -257,6 +257,7 @@ private:
 		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node);
 		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
+		CondMod<AstNodeType::call,       CallNode>::eval(*this, node);
 	}
 
 	void mod(GlobalNode& global)
@@ -313,7 +314,7 @@ private:
 			void_type->name= "void";
 
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= "self";
+			self_id->name= clashPrevention() + "self";
 
 			auto self_param_ptr_qual= context.newNode<QualifierNode>();
 			self_param_ptr_qual->qualifierType= QualifierType::pointer;
@@ -396,6 +397,27 @@ private:
 		if (var.value) {
 			mod(*var.value);
 		}
+	}
+
+	void mod(CallNode& call)
+	{
+		if (call.args.size() != call.argRouting.size())
+			return; // Generated C function
+
+		// Resolve argument routing
+		std::vector<AstNode*> new_args;
+		new_args.resize(call.args.size());
+		std::size_t i= 0;
+		for (auto&& arg : call.args) {
+			int param_i= call.argRouting[i];
+			assert(param_i >= 0 && param_i < new_args.size());
+			new_args[param_i]= arg;
+			++i;
+		}
+
+		call.args= vecToList(new_args);
+		call.argRouting.clear(); // Routing is not up-to-date anymore
+		call.namedArgs.clear(); // No named args in C
 	}
 
 	template <AstNodeType nodeType, typename T>

@@ -14,9 +14,18 @@ namespace gamelang
 {
 
 template <typename T>
-std::vector<T> listAsVec(const std::list<T>& l)
+std::vector<T> listToVec(const std::list<T>& l)
 {
 	std::vector<T> v;
+	for (auto&& m : l)
+		v.emplace_back(m);
+	return v;
+}
+
+template <typename T>
+std::list<T> vecToList(const std::vector<T>& l)
+{
+	std::list<T> v;
 	for (auto&& m : l)
 		v.emplace_back(m);
 	return v;
@@ -55,7 +64,7 @@ struct GlobalNode final : AstNode {
 	std::list<AstNode*> nodes;
 
 	GlobalNode(): AstNode(AstNodeType::global) {}
-	std::vector<AstNode*> getSubNodes() const override { return listAsVec(nodes); }
+	std::vector<AstNode*> getSubNodes() const override { return listToVec(nodes); }
 };
 
 struct VarDeclNode;
@@ -83,7 +92,7 @@ struct BlockNode final : AstNode {
 	BlockNode(): AstNode(AstNodeType::block) {}
 	std::vector<AstNode*> getSubNodes() const override
 	{
-		auto ret= listAsVec(nodes);
+		auto ret= listToVec(nodes);
 		ret.push_back(funcType);
 		ret.push_back(condition);
 		return ret;
@@ -187,10 +196,16 @@ struct CtrlStatementNode final : AstNode {
 struct CallNode final : AstNode {
 	IdentifierNode* func= nullptr;
 	std::list<AstNode*> args;
+	/// namedArgs[i] corresponds to args[i]
+	/// namedArgs[i].empty() == ordinary argument
+	std::vector<std::string> namedArgs;
+
+	/// argRouting[arg_i] == index in func decl
+	std::vector<int> argRouting;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= listAsVec(args); ret.push_back(func); return ret; }
+	{ auto ret= listToVec(args); ret.push_back(func); return ret; }
 };
 
 enum class QualifierType {
