@@ -31,6 +31,8 @@ enum class TokenType {
 	dot, // .
 	ref, // &
 	hat, // ^
+	question, // ?
+	squote, // '
 	comment, // //
 	unknown
 };
@@ -61,6 +63,8 @@ static const char* enumStr(TokenType type)
 		case TokenType::dot: return "dot";
 		case TokenType::ref: return "ref";
 		case TokenType::hat: return "hat";
+		case TokenType::question: return "question";
+		case TokenType::squote: return "squote";
 		case TokenType::comment: return "comment";
 		case TokenType::unknown:
 		default: return "unknown";
@@ -93,6 +97,8 @@ static const char* str(TokenType type)
 		case TokenType::dot: return ".";
 		case TokenType::ref: return "&";
 		case TokenType::hat: return "^";
+		case TokenType::question: return "?";
+		case TokenType::squote: return "'";
 		case TokenType::comment: return "//";
 		case TokenType::unknown:
 		default: return "???";
