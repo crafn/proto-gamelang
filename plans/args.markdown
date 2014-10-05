@@ -1,4 +1,4 @@
-Similar to C++
+Default values similar to C++
 
 	let foo := fn (a : int, b := 10) { ... }
 	foo(10, getValue());
