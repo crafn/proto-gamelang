@@ -20,7 +20,7 @@ The last row shows how struct can be instantiated by calling the implicit constr
 	let Object := struct {
 		/// @todo `required` syntax
 		var type : ObjectType = ObjectType::empty;
-		var id= g_manager.nextIdForType(type);
+		var id := g_manager.nextIdForType(type);
 		var special := false;
 
 		if (id % 100 == 0)
