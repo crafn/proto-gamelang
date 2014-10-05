@@ -2,7 +2,7 @@ Pointer syntax
 
 	var ptr : ?int = null;
 
-Other semantics are similar to C pointers.
+Other semantics are similar to C pointers. Note how everything can be parsed from left to right: "variable `ptr` is a pointer-to-int with default value `null`"
 
 Reference syntax
 
