@@ -1,8 +1,8 @@
 Default values similar to C++
 
 	let foo := fn (a : int, b := 10) { ... }
-	foo(10, getValue());
-	foo(10); // b == 10
+	foo(2, getValue());
+	foo(2); // b == 10
 
 Named arguments
 
