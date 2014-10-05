@@ -194,7 +194,8 @@ struct CallNode final : AstNode {
 };
 
 enum class QualifierType {
-	pointer
+	pointer,
+	reference
 };
 
 struct QualifierNode final : AstNode {

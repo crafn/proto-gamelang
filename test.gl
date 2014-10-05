@@ -9,13 +9,12 @@ let fibo := fn (n : int) -> int
 		return 1;
 	}
 	return fibo(n - 1) + fibo(n - 2);
-}
+};
 
-let Kana := struct
-{
+let Kana := struct {
 	var age : int = fibo(g_value);
 	var mass : int = 0;
-}
+};
 
 let gotoExample := fn () -> int
 {
@@ -26,12 +25,12 @@ let gotoExample := fn () -> int
 			goto test_label;
 		}
 	return i;
-}
+};
 
 let main := fn () -> int
 {
 	var kana : Kana; // Ctor is called
 	kana.mass = 1995;
 	return kana.age;
-}
+};
 

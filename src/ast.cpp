@@ -127,14 +127,15 @@ private:
 				var->valueType= deducedType(*var->value);
 		}
 
-		/// @todo Add these
-		/*if (var->value)
+		if (var->value) {
 			parseCheck(	var->value->endStatement,
 						"Missing ; after var decl: " + var->identifier->name);
-		else if (var->valueType)
+		} else if (var->valueType) {
 			parseCheck(	var->valueType->endStatement,
 						"Missing ; after var decl: " + var->identifier->name);
-		*/
+		}
+
+		
 		assert(var->valueType);
 
 		return var;
@@ -220,8 +221,13 @@ private:
 		while (tok->type != TokenType::closeBlock) {
 			block->nodes.emplace_back(parseExpr(tok));
 		}
+		nextToken(tok);
 
-		advance(tok);
+		if (tok->type == TokenType::endStatement) {
+			block->endStatement= true;
+			advance(tok);
+		}
+
 		return block;
 	}
 
@@ -300,12 +306,14 @@ private:
 
 	QualifierNode* parseQualifiedType(It& tok)
 	{
-		auto qualifier= newNode<QualifierNode>();
-		if (tok->type == TokenType::hat) {
-			qualifier->qualifierType= QualifierType::pointer;
-		} else {
-			assert(0 && "Unknown qualifier token");
+		QualifierType t;
+		switch (tok->type) {
+			case TokenType::question: t= QualifierType::pointer;
+			case TokenType::hat: t= QualifierType::reference;
+			default: assert(0 && "Unknown qualifier token");
 		}
+		auto qualifier= newNode<QualifierNode>();
+		qualifier->qualifierType= t;
 		nextToken(tok);
 
 		qualifier->target= parseExpr(tok, false);
