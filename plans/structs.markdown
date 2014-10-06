@@ -18,7 +18,6 @@ Instantiation
 The last row shows how struct can be instantiated by calling the implicit constructor function. It turns out that the struct block can be thought as an ordinary block of code with the difference that the variables declared in it will remain in the instance. Also, default values of struct members can be overridden by the constructor call.
 
 	let Object := struct {
-		/// @todo `required` syntax
 		var type : ObjectType = ObjectType::empty;
 		var id := g_manager.nextIdForType(type);
 		var special := false;
