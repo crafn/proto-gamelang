@@ -1,4 +1,4 @@
-#Some ideas
+##Some ideas
 - joy of programming
 - as efficient as C
 - easy to parse (for human and for computer)
@@ -60,11 +60,11 @@
 				- programmer decides which kind of errors are worth to be recovered from
 				- this way not every e.g. allocation has to be checked
 
-#Would be nice to have
+##Would be nice to have
 - RAII
 - multiple return values
 
-#Not sure about
+##Not sure about
 - function overloading
 - operator overloading
 - object oriented programming
@@ -80,3 +80,4 @@
 - parameterized mutability if duplicate code arises
 - `foo(input, output)` or `foo(output, input)`
 
+Worth watching: Jonathan Blow talking about ideas for a hypothetical game programming language: http://youtu.be/TH9VCN6UkyQ
