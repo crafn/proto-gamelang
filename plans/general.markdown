@@ -77,8 +77,9 @@
 	- method call syntax is nice in some cases
 		- data.transformed().shifted().mangled();
 		- mangled(shifted(transformed(data)));
-	- all methods could declared as ordinary functions
-- parameterized mutability if duplicate code arises
+	- all methods could be declared as ordinary functions
+- parameterized mutability
+	- lack of it leads to duplicating code in C++
 - `foo(input, output)` or `foo(output, input)`
 
 Worth watching: Jonathan Blow talking about ideas for a hypothetical game programming language: http://youtu.be/TH9VCN6UkyQ
