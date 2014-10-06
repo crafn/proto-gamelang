@@ -1,0 +1,30 @@
+let ordinary := fn (foo : int, bar : int) { };
+let defaults := fn (foo : int = 10, bar : int = 20) { };
+let mixed := fn (a : int, b : int = 2, c : int = 3) { };
+let main := fn() -> int
+{
+	ordinary(10, 20);
+	ordinary(.foo= 10, .bar= 20);
+	ordinary(.bar= 20, .foo= 10);
+	ordinary(10, .bar= 20);
+	ordinary(.bar= 20, 10);
+	ordinary(20, .foo= 10);
+
+	defaults(10, 20);
+	defaults(10);
+	defaults();
+
+	mixed(1, 2, 3);
+	mixed(.a= 1, .b= 2, .c= 3);
+	mixed(1, 2);
+	mixed(1);
+	mixed(.a= 1);
+	mixed(.b= 2, 1);
+	mixed(.c= 3, 1);
+	mixed(2, .a= 1, 3);
+	mixed(1, .b= 2);
+	mixed(1, .c= 3);
+	mixed(.c= 3, 1, 2);
+
+	return 0;
+};

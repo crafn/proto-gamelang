@@ -28,14 +28,7 @@ int main(int argc, const char* argv[])
 	std::string code= gamelang::genC(ast);
 	std::cout << code;
 
-	{
-		std::ofstream output{"out.c", std::ios::binary};
-		output << code;
-		output.close();
-
-		system(	"gcc "
-				"-Wall -Wextra -Werror "
-				"-Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable "
-				"out.c -o out");
-	}
+	std::ofstream output{"temp.c", std::ios::binary};
+	output << code;
+	output.close();
 }

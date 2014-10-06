@@ -1,0 +1,6 @@
+let globalConstant : int = 42;
+var globalVar : int = 0;
+let globalFunc := fn () { };
+let GlobalType := struct { };
+
+let main := fn () -> int { 0 };

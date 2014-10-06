@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+import os, sys
+
+test_files= [
+	"declarations.gl",
+	"func_args.gl"
+]
+
+if __name__ == "__main__":
+	errors= []
+	for test in test_files:
+		ret= os.system("./compiler ./tests/" + test)
+		if ret != 0:
+			errors.append(test)
+
+	if len(errors) == 0:
+		print("*** All tests completed ***")
+	else:
+		print("*** FAILED TESTS (" + str(len(errors)) + ") ***")
+		for e in errors:
+			print("  " + e)
+		sys.exit(1)
+
