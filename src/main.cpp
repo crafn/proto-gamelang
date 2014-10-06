@@ -33,6 +33,9 @@ int main(int argc, const char* argv[])
 		output << code;
 		output.close();
 
-		system("gcc out.c -o out");
+		system(	"gcc "
+				"-Wall -Wextra -Werror "
+				"-Wno-unused-parameter -Wno-unused-variable -Wno-unused-but-set-variable "
+				"out.c -o out");
 	}
 }
