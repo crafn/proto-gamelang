@@ -14,6 +14,7 @@ let fibo := fn (n : int) -> int
 let Kana := struct {
 	var age : int = fibo(g_value);
 	var mass : int = 0;
+	var parent : ?Kana = null;
 };
 
 let gotoExample := fn () -> int

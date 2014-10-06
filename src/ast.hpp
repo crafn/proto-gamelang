@@ -209,12 +209,13 @@ struct CallNode final : AstNode {
 };
 
 enum class QualifierType {
+	none,
 	pointer,
 	reference
 };
 
 struct QualifierNode final : AstNode {
-	QualifierType qualifierType= QualifierType::pointer;
+	QualifierType qualifierType= QualifierType::none;
 	AstNode* target= nullptr;
 
 	QualifierNode(): AstNode(AstNodeType::qualifier) {}

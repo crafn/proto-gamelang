@@ -325,19 +325,20 @@ private:
 		return expr;
 	}
 
-	bool qualifierToken(TokenType t)
-	{ return t == TokenType::hat; }
+	QualifierType qualifierType(TokenType t)
+	{
+		switch (t) {
+			case TokenType::question: return QualifierType::pointer;
+			case TokenType::hat: return QualifierType::reference;
+			default: return QualifierType::none;
+		}
+	}
 
 	QualifierNode* parseQualifiedType(It& tok)
 	{
-		QualifierType t;
-		switch (tok->type) {
-			case TokenType::question: t= QualifierType::pointer;
-			case TokenType::hat: t= QualifierType::reference;
-			default: assert(0 && "Unknown qualifier token");
-		}
 		auto qualifier= newNode<QualifierNode>();
-		qualifier->qualifierType= t;
+		qualifier->qualifierType= qualifierType(tok->type);
+		assert(qualifier->qualifierType != QualifierType::none);
 		nextToken(tok);
 
 		qualifier->target= parseExpr(tok, false);
@@ -438,7 +439,7 @@ private:
 			return parseRestExpr(parseNumLiteral(tok), tok, greedy);
 		} else if (tok->type == TokenType::comment) {
 			return parseComment(tok);
-		} else if (qualifierToken(tok->type)) {
+		} else if (qualifierType(tok->type) != QualifierType::none) {
 			return parseQualifiedType(tok);
 		} else if (uOpToken(tok->type)) {
 			return parseUOp(tok);
