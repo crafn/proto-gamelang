@@ -1,5 +1,5 @@
 Functions are variables.
-Declaration syntax (in any block)
+Definition syntax (in any block)
 
 	let plusOne := fn (n : int) -> int
 	{

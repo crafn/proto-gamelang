@@ -1,0 +1,83 @@
+#Some ideas
+- joy of programming
+- as efficient as C
+- easy to parse (for human and for computer)
+	- expressions readable from left to right
+	- low amount of ambiguity
+- ease of reorganizing code: no artificial syntax changes required
+	- functions are values
+- static typing
+- metaprogramming with types should be similar to ordinary programming
+	- types are values
+- immutability
+	- everything is immutable by default
+	- types are always immutable
+- programmer can have all control if needed (similar to C)
+- references
+	- always points to non-null address
+		- compiler requires checks before `ref = pointer;`
+	- has the same performance characteristics as pointers
+	- not sure what to do with pointer arithmetic
+- ease of seeing performance characteristics from local code
+	- indirection of pointers and references is explicit
+- explicit (but simple) syntax for uninitialized variables
+- simple memory control scheme
+	- something else than C++ allocators
+- no include files
+	- things don't need to be declared before using them
+		- no workarounds for circular references needed
+	- some kind of module system
+- uniform error reporting scheme
+	- exceptions are overengineered
+		- usually a single byte of information from func would be enough
+		- stdlib would have predefined exception safety guarantee
+			- stdlib suboptimal for half of the users
+		- a type arising from few levels deep doesn't deliver info about the real error
+		- reasoning about code with exceptions is hard
+		- makes RAII compulsory `--joy_of_programming`
+		- adds great amounts of mental overhead
+		- too hard to get right
+		- runtime overhead
+	- return values are hacky solution
+		- takes place from a real return value
+		- easy to accidentally forget checking
+		- no good for constructors
+	- additional error ptr parameter
+		- easy to accidentally forget checking
+		- failing constructor would still produce a rubbish object
+	- exceptions-lite
+		- function can do something like `return error ERR_VALUE;`
+			- functions returning errors must me explicitly declared as failing functions
+		- could make use of multiple return values
+		- calling a failing function without acquiring `error` detected by compiler
+			- error checking could be still omitted accidentally...
+			- it should be possible to explicitly omit error checking
+		- some variant of try-catch as an alternative way to catch errors
+			- would be the only way to catch errors of a failing ctor
+		- what if, like, memory allocation fails?
+			- `terminate` mechanism, which is used when an unrecoverable error occurs
+				- custom handlers are issued before termination
+				- programmer decides which kind of errors are worth to be recovered from
+				- this way not every e.g. allocation has to be checked
+
+#Would be nice to have
+- RAII
+- multiple return values
+
+#Not sure about
+- function overloading
+- operator overloading
+- object oriented programming
+- methods
+	- the C++ -way is kind of stupid
+		- only essential operations should be methods
+		- other operations should be functions
+		- now I have to remember when to use foo(obj); and when obj.foo();
+	- method call syntax is nice in some cases
+		- data.transformed().shifted().mangled();
+		- mangled(shifted(transformed(data)));
+	- all methods could declared as ordinary functions
+- parameterized mutability
+	- duplicate code arises
+- foo(input, output) or foo(output, input)
+
