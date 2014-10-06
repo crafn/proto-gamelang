@@ -63,6 +63,7 @@
 ##Would be nice to have
 - RAII
 - multiple return values
+- move semantics
 
 ##Not sure about
 - function overloading
