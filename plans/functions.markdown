@@ -1,4 +1,4 @@
-Functions are variables.
+Functions are values.
 Declaration syntax (in any block)
 
 	let plusOne := fn (n : int) -> int
