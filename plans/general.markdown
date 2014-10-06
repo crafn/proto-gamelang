@@ -77,7 +77,6 @@
 		- data.transformed().shifted().mangled();
 		- mangled(shifted(transformed(data)));
 	- all methods could declared as ordinary functions
-- parameterized mutability
-	- duplicate code arises
-- foo(input, output) or foo(output, input)
+- parameterized mutability if duplicate code arises
+- `foo(input, output)` or `foo(output, input)`
 
