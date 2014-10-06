@@ -95,16 +95,35 @@ private:
 		log("parseVarDecl");
 		auto&& log_indent= logIndentGuard();
 
-		auto var= newNode<VarDeclNode>();
 		parseCheck(tok->type == TokenType::identifier, "Expected identifier");
-		if (tok->text == "var") {
-			var->constant= false;
-		} else if (tok->text == "let") {
-			var->constant= true;
-		} else {
+		bool constant= false;
+		if (tok->text == "var")
+			constant= false;
+		else if (tok->text == "let")
+			constant= true;
+		else
 			parseCheck(false, "Expected var/let");
-		}
+
 		nextToken(tok);
+
+		auto decl= parseVarDeclBody(tok, constant);
+
+		if (decl->value) {
+			parseCheck(	decl->value->endStatement,
+						"Missing ; after var decl: " + decl->identifier->name);
+		} else if (decl->valueType) {
+			parseCheck(	decl->valueType->endStatement,
+						"Missing ; after var decl: " + decl->identifier->name);
+		}
+
+		return decl;
+	}
+
+	/// Parses `name : Type = defaultValue` part of the decl
+	VarDeclNode* parseVarDeclBody(It& tok, bool constant)
+	{
+		auto var= newNode<VarDeclNode>();
+		var->constant= constant;
 
 		parseCheck(tok->type == TokenType::identifier, "Error in var decl name");
 		var->identifier= parseIdentifier(tok);
@@ -135,16 +154,7 @@ private:
 				var->valueType= deducedType(*var->value);
 		}
 
-		if (var->value) {
-			parseCheck(	var->value->endStatement,
-						"Missing ; after var decl: " + var->identifier->name);
-		} else if (var->valueType) {
-			parseCheck(	var->valueType->endStatement,
-						"Missing ; after var decl: " + var->identifier->name);
-		}
-		
 		assert(var->valueType);
-
 		return var;
 	}
 
@@ -166,20 +176,8 @@ private:
 			if (tok->type == TokenType::comma)
 				nextToken(tok);
 
-			auto param= newNode<VarDeclNode>();
+			auto param= parseVarDeclBody(tok, true);
 			param->param= true;
-
-			parseCheck(tok->type == TokenType::identifier,
-					"Missing identifier for func arg");
-			param->identifier= parseIdentifier(tok);
-			param->identifier->boundTo= param;
-
-			parseCheck(tok->type == TokenType::declaration,
-					"Missing : for func arg");
-			nextToken(tok);
-
-			param->valueType= parseExpr(tok, false);
-			assert(param->valueType);
 			func_type->params.push_back(param);
 		}
 		nextToken(tok);
@@ -192,7 +190,8 @@ private:
 			/// @todo Implicit return type
 			auto return_type= newNode<IdentifierNode>();
 			return_type->name= "void";
-			func_type->returnType= std::move(return_type);
+			return_type->boundTo= &context.getBuiltinTypeDecl();
+			func_type->returnType= return_type;
 		}
 
 		return func_type;
@@ -643,16 +642,18 @@ private:
 	void tie(CallNode& call)
 	{
 		auto&& call_name= NONULL(call.func)->name;
-		auto routeArgsToParams= [&call_name] (const std::vector<std::string>& names,
-									const std::vector<VarDeclNode*>& params)
-								-> std::vector<int>
+		auto routeArgsToParams=
+			[&call_name] (	std::vector<AstNode*>& implicit_args, // output
+							std::vector<std::string>& names,
+							const std::vector<VarDeclNode*>& params)
+			-> std::vector<int>
 		{
-			parseCheck(names.size() == params.size(),
-					"Wrong amount of arguments in a call: " + call_name);
+			parseCheck(names.size() <= params.size(),
+					"Too many arguments in a call: " + call_name);
 			std::vector<int> routing; // routing[arg_i] == param_i
 			routing.resize(names.size(), -1);
 			std::vector<bool> routed_params;
-			routed_params.resize(names.size());
+			routed_params.resize(params.size());
 
 			// Route named args
 			for (std::size_t i= 0; i < names.size(); ++i) {
@@ -685,6 +686,26 @@ private:
 				assert(routing[i] == -1);
 				routing[i]= next_param_i;
 				routed_params[next_param_i]= true;
+				++next_param_i;
+			}
+
+			// Create and route implicit args
+			for (std::size_t i= 0; i < params.size(); ++i) {
+				assert(i < routed_params.size());
+				if (routed_params[i])
+					continue;
+
+				auto&& p= *NONULL(params[i]);
+				auto impl_value= p.value;
+				parseCheck(	impl_value != nullptr,
+							"Missing argument: " + p.identifier->name);
+
+				// Using same node as func decl
+				implicit_args.emplace_back(impl_value);
+
+				names.emplace_back("");
+				routing.emplace_back(i);
+				routed_params[i]= true;
 			}
 			
 			for (auto&& r : routing) {
@@ -708,16 +729,19 @@ private:
 			// Ordinary function call
 			auto func_type= static_cast<FuncTypeNode*>(var_decl->valueType);
 			call.argRouting=
-				routeArgsToParams(call.namedArgs, listToVec(func_type->params));
+				routeArgsToParams(	call.implicitArgs,
+									call.namedArgs,
+									listToVec(func_type->params));
 		} else if (NONULL(var_decl)->valueType->type == AstNodeType::structType) {
 			// Constructor call
 			auto struct_type= static_cast<StructTypeNode*>(var_decl->valueType);
 			call.argRouting=
-				routeArgsToParams(call.namedArgs, struct_type->varDecls);
+				routeArgsToParams(	call.implicitArgs,
+									call.namedArgs,
+									struct_type->varDecls);
 		}
 
-		assert(call.argRouting.size() == call.namedArgs.size());
-		assert(call.argRouting.size() == call.args.size());
+		assert(call.argRouting.size() == call.args.size() + call.implicitArgs.size());
 	}
 
 	void tie(LabelNode& label)

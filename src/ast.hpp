@@ -207,6 +207,9 @@ struct CtrlStatementNode final : AstNode {
 struct CallNode final : AstNode {
 	IdentifierNode* func= nullptr;
 	std::list<AstNode*> args;
+	/// Extends `args`
+	std::vector<AstNode*> implicitArgs;
+
 	/// namedArgs[i] corresponds to args[i]
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;

@@ -11,10 +11,10 @@ let fibo := fn (n : int) -> int
 	return fibo(n - 1) + fibo(n - 2);
 };
 
-let Kana := struct {
-	var age : int       = 0;
-	var mass : int      = fibo(g_value);
-	var parent : ?Kana  = null;
+let Chicken := struct {
+	var age : int         = 0;
+	var mass : int        = fibo(g_value);
+	var parent : ?Chicken = null;
 };
 
 let Empty := struct {};
@@ -31,17 +31,25 @@ let gotoExample := fn () -> int
 };
 
 let foo := fn (a : int, b : int, c : int) -> void {};
+let bar := fn (a : int, b : int = 10) -> void {};
 
 let main := fn () -> int
 {
 	// Named argument test
 	foo(.c= 17, .a= 1, 8);
 
+	// Default argument test
+	bar(1);
+
+	// Uninitialized instance
 	var e : Empty;
 
-	var kana := Kana(null, .mass= 10, .age= 5);
-	//var kana := Kana(.parent = &old_kana);
-	kana.mass = 10;
-	return kana.age;
+
+	var old_chicken := Chicken(.mass= 10, .age= 5);
+
+	var chicken := Chicken(.parent = &old_chicken);
+	chicken.mass = 10;
+
+	return 0;
 };
 

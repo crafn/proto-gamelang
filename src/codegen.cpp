@@ -11,11 +11,6 @@ namespace gamelang
 namespace  
 {
 
-bool compilerGenerated(const CallNode& call)
-{
-	return call.namedArgs.size() != call.args.size();
-}
-
 struct CCodeGen {
 	std::string code;
 
@@ -418,21 +413,24 @@ private:
 
 	void mod(CallNode& call)
 	{
-		if (compilerGenerated(call))
-			return;
-
 		// Resolve argument routing
 		std::vector<AstNode*> new_args;
-		new_args.resize(call.args.size());
+		new_args.resize(call.args.size() + call.implicitArgs.size());
 		std::size_t i= 0;
-		for (auto&& arg : call.args) {
+		auto setNextArg= [&] (AstNode* arg)
+		{
 			int param_i= call.argRouting[i];
 			assert(param_i >= 0 && param_i < new_args.size());
 			new_args[param_i]= arg;
 			++i;
-		}
+		};
+		for (auto&& arg : call.args)
+			setNextArg(arg);
+		for (auto&& arg : call.implicitArgs)
+			setNextArg(arg);
 
 		call.args= vecToList(new_args);
+		call.implicitArgs.clear();
 		call.argRouting.clear(); // Routing is not up-to-date anymore
 		call.namedArgs.clear(); // No named args in C
 	}
