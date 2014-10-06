@@ -83,8 +83,8 @@ struct IdentifierNode final : AstNode {
 struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
 
-	bool structure= false;
 	bool loop= false; // Defined with `loop` keyword
+	AstNode* structType= nullptr;
 	AstNode* funcType= nullptr;
 	AstNode* condition= nullptr;
 	std::list<AstNode*> nodes;
@@ -129,8 +129,17 @@ struct FuncTypeNode final : AstNode {
 
 /// `struct`
 struct StructTypeNode final : AstNode {
+	/// Var decls picked from the block for easy access
+	std::vector<VarDeclNode*> varDecls;
+
 	StructTypeNode(): AstNode(AstNodeType::structType) {}
-	std::vector<AstNode*> getSubNodes() const override { return {}; }
+	std::vector<AstNode*> getSubNodes() const override
+	{
+		std::vector<AstNode*> ret;
+		for (auto* p : varDecls)
+			ret.push_back(p);
+		return ret;
+	}
 };
 
 /// Type of `int`
@@ -152,8 +161,10 @@ struct NullLiteralNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
-// TokenType contains all needed values
-using UOpType= TokenType;
+enum class UOpType {
+	declType,
+	addrOf
+};
 
 /// `!flag`
 struct UOpNode final : AstNode {

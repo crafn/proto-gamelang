@@ -74,17 +74,20 @@ private:
 
 	void advance(It& it) { ++it; }
 
-	AstNode* deducedType(const AstNode& thing)
+	AstNode* deducedType(AstNode& thing)
 	{
 		if (thing.type == AstNodeType::block) {
 			const BlockNode& block= static_cast<const BlockNode&>(thing);
-			if (block.structure)
-				return newNode<StructTypeNode>();
+			if (block.structType)
+				return block.structType;
 			if (block.funcType)
-				return block.funcType;
+				return block.funcType;		
+		} else {
+			auto op= newNode<UOpNode>();
+			op->opType= UOpType::declType;
+			op->target= &thing;
+			return op;
 		}
-
-		assert(0 && "@todo deduction");
 	}
 
 	VarDeclNode* parseVarDecl(It& tok)
@@ -139,7 +142,6 @@ private:
 			parseCheck(	var->valueType->endStatement,
 						"Missing ; after var decl: " + var->identifier->name);
 		}
-
 		
 		assert(var->valueType);
 
@@ -255,6 +257,22 @@ private:
 		return block;
 	}
 
+	BlockNode* parseStructBlock(It& tok)
+	{
+		nextToken(tok); // Skip `struct`
+
+		auto block= parseBlock(tok);
+		auto struct_type= newNode<StructTypeNode>();
+		block->structType= struct_type;
+		for (AstNode* node : block->nodes) {
+			if (node->type != AstNodeType::varDecl)
+				continue;
+			auto decl= static_cast<VarDeclNode*>(node);
+			struct_type->varDecls.emplace_back(decl);
+		}
+		return block;
+	}
+
 	NumLiteralNode* parseNumLiteral(It& tok)
 	{
 		auto literal= newNode<NumLiteralNode>();
@@ -352,7 +370,7 @@ private:
 	{
 		auto op= newNode<UOpNode>();
 		if (tok->type == TokenType::ref) {
-			op->opType= UOpType::ref;
+			op->opType= UOpType::addrOf;
 		} else {
 			assert(0 && "Unknown UOp token");
 		}
@@ -418,10 +436,7 @@ private:
 				block->loop= true;
 				return block;
 			} else if (tok->text == "struct") {
-				nextToken(tok);
-				auto block= parseBlock(tok);
-				block->structure= true;
-				return block;
+				return parseStructBlock(tok);
 			} else if (tok->text == "return") {
 				return parseReturn(tok);
 			} else if (tok->text == "goto") {
@@ -533,6 +548,7 @@ private:
 		CondTie<AstNodeType::block,         BlockNode>::eval(*this, node);
 		CondTie<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
 		CondTie<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node);
+		CondTie<AstNodeType::uOp,           UOpNode>::eval(*this, node);
 		CondTie<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
 		CondTie<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
 		CondTie<AstNodeType::call,          CallNode>::eval(*this, node);
@@ -578,6 +594,26 @@ private:
 		tie(*NONULL(var.valueType));
 		if (var.value)
 			tie(*var.value);
+
+		// Resolve decltype
+		if (	var.valueType->type == AstNodeType::uOp &&
+				static_cast<UOpNode*>(var.valueType)->opType
+					== UOpType::declType) {
+			/// @todo Resolving types and metaprograms probably need another pass
+			auto op= static_cast<UOpNode*>(var.valueType);
+			
+			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
+						"Only decltype(call) supported");
+			auto call= static_cast<CallNode*>(op->target);
+
+			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
+			// the declaration `let Chicken := struct {..}`
+			assert(NONULL(call->func->boundTo)->type == AstNodeType::varDecl);
+			auto ret_type_decl= static_cast<VarDeclNode*>(call->func->boundTo);
+
+			// Resolve valueType to the identifier of the struct type
+			var.valueType= ret_type_decl->identifier;
+		}
 	}
 
 	void tie(FuncTypeNode& func)
@@ -585,6 +621,11 @@ private:
 		tie(*NONULL(func.returnType));
 		for (auto&& node : func.params)
 			tie(*NONULL(node));
+	}
+
+	void tie(UOpNode& op)
+	{
+		tie(*NONULL(op.target));
 	}
 
 	void tie(BiOpNode& op)
@@ -601,11 +642,13 @@ private:
 
 	void tie(CallNode& call)
 	{
-		auto routeArgsToParams= [] (const std::vector<std::string>& names,
-									const std::list<VarDeclNode*>& params)
+		auto&& call_name= NONULL(call.func)->name;
+		auto routeArgsToParams= [&call_name] (const std::vector<std::string>& names,
+									const std::vector<VarDeclNode*>& params)
 								-> std::vector<int>
 		{
-			assert(names.size() == params.size());
+			parseCheck(names.size() == params.size(),
+					"Wrong amount of arguments in a call: " + call_name);
 			std::vector<int> routing; // routing[arg_i] == param_i
 			routing.resize(names.size(), -1);
 			std::vector<bool> routed_params;
@@ -617,16 +660,14 @@ private:
 					continue;
 
 				bool found= false;
-				std::size_t param_i= 0;
-				for (auto&& param : params) {
-					if (	NONULL(NONULL(param)->identifier)->name
+				for (std::size_t param_i= 0; param_i < params.size(); ++param_i) {
+					if (	NONULL(NONULL(params[param_i])->identifier)->name
 							== names[i]) {
 						routing[i]= param_i;
 						routed_params[param_i]= true;
 						found= true;
 						break;
 					}
-					++param_i;
 				}
 				parseCheck(found, "Named param not found: " + names[i]);
 			}
@@ -655,19 +696,26 @@ private:
 		};
 
 		tie(*NONULL(call.func));
-		
-		// Obtain FuncTypeNode to route arguments
-		auto func_id_bound= NONULL(call.func)->boundTo;
-		assert(NONULL(func_id_bound)->type == AstNodeType::varDecl);
-		auto var_decl= static_cast<VarDeclNode*>(func_id_bound);
-		assert(NONULL(var_decl)->valueType->type == AstNodeType::funcType);
-		auto func_type= NONULL(static_cast<FuncTypeNode*>(var_decl->valueType));
-
 		for (auto&& arg : call.args) {
 			tie(*NONULL(arg)); 
 		}
 
-		call.argRouting= routeArgsToParams(call.namedArgs, func_type->params);
+		// Route call arguments to function/struct parameters
+		auto func_id_bound= NONULL(call.func)->boundTo;
+		assert(NONULL(func_id_bound)->type == AstNodeType::varDecl);
+		auto var_decl= static_cast<VarDeclNode*>(func_id_bound);
+		if (NONULL(var_decl)->valueType->type == AstNodeType::funcType) {
+			// Ordinary function call
+			auto func_type= static_cast<FuncTypeNode*>(var_decl->valueType);
+			call.argRouting=
+				routeArgsToParams(call.namedArgs, listToVec(func_type->params));
+		} else if (NONULL(var_decl)->valueType->type == AstNodeType::structType) {
+			// Constructor call
+			auto struct_type= static_cast<StructTypeNode*>(var_decl->valueType);
+			call.argRouting=
+				routeArgsToParams(call.namedArgs, struct_type->varDecls);
+		}
+
 		assert(call.argRouting.size() == call.namedArgs.size());
 		assert(call.argRouting.size() == call.args.size());
 	}

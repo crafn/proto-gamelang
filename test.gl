@@ -12,10 +12,12 @@ let fibo := fn (n : int) -> int
 };
 
 let Kana := struct {
-	var age : int = fibo(g_value);
-	var mass : int = 0;
-	var parent : ?Kana = null;
+	var age : int       = 0;
+	var mass : int      = fibo(g_value);
+	var parent : ?Kana  = null;
 };
+
+let Empty := struct {};
 
 let gotoExample := fn () -> int
 {
@@ -35,8 +37,11 @@ let main := fn () -> int
 	// Named argument test
 	foo(.c= 17, .a= 1, 8);
 
-	var kana : Kana; // Ctor is called
-	kana.mass = 1995;
+	var e : Empty;
+
+	var kana := Kana(null, .mass= 10, .age= 5);
+	//var kana := Kana(.parent = &old_kana);
+	kana.mass = 10;
 	return kana.age;
 };
 

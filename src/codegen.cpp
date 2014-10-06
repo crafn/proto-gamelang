@@ -11,6 +11,11 @@ namespace gamelang
 namespace  
 {
 
+bool compilerGenerated(const CallNode& call)
+{
+	return call.namedArgs.size() != call.args.size();
+}
+
 struct CCodeGen {
 	std::string code;
 
@@ -160,7 +165,10 @@ private:
 
 	void gen(const UOpNode& op)
 	{
-		emit(str(op.opType));
+		switch (op.opType) {
+			case UOpType::addrOf: emit("&"); break;
+			default: assert(0 && "Unknown UOP");
+		}
 		gen(*NONULL(op.target));
 	}
 
@@ -245,9 +253,6 @@ private:
 	std::vector<AstNode*> globalInsertRequests;
 	std::vector<AstNode*> localInsertRequests;
 
-	/// Variables initialized in current struct
-	std::vector<VarDeclNode*> structInitVars;
-
 	std::string clashPrevention() const { return "_cR_"; }
 	std::string ctorName(std::string type_name) const
 	{ return clashPrevention() + "ctor_" + type_name; }
@@ -282,7 +287,7 @@ private:
 	void mod(BlockNode& block)
 	{
 		ScopeType scope_type= ScopeType::plainScope;
-		if (block.structure)
+		if (block.structType)
 			scope_type= ScopeType::structure;
 		else if (block.funcType)
 			scope_type= ScopeType::function;
@@ -307,27 +312,13 @@ private:
 
 		scopeStack.pop();
 
-		if (block.structure) {
-			// Create ctor for structure
-
-			auto void_type= context.newNode<IdentifierNode>();
-			void_type->name= "void";
-
-			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= clashPrevention() + "self";
-
-			auto self_param_ptr_qual= context.newNode<QualifierNode>();
-			self_param_ptr_qual->qualifierType= QualifierType::pointer;
-			self_param_ptr_qual->target= block.boundTo;
-
-			auto self_param= context.newNode<VarDeclNode>();
-			self_param->param= true;
-			self_param->identifier= self_id;
-			self_param->valueType= self_param_ptr_qual;
+		if (block.structType) {
+			// Generate ctor for structure
+			assert(block.structType->type == AstNodeType::structType);
+			auto struct_type= static_cast<StructTypeNode*>(block.structType);
 
 			auto ctor_func_type= context.newNode<FuncTypeNode>();
-			ctor_func_type->returnType= void_type;
-			ctor_func_type->params.emplace_back(self_param);
+			ctor_func_type->returnType= block.boundTo;
 
 			auto ctor_block= context.newNode<BlockNode>();
 			ctor_block->funcType= ctor_func_type;
@@ -340,16 +331,38 @@ private:
 			ctor_func->valueType= ctor_func_type;
 			ctor_func->value= ctor_block;
 
-			for (VarDeclNode* decl : structInitVars) {
+			auto self_id= context.newNode<IdentifierNode>();
+			self_id->name= clashPrevention() + "self";
+
+			auto self_var= context.newNode<VarDeclNode>();
+			self_var->param= true;
+			self_var->valueType= block.boundTo;
+			self_var->endStatement= true;
+			self_var->identifier= self_id;
+			self_id->boundTo= self_var;
+			ctor_block->nodes.emplace_back(self_var);
+
+			for (VarDeclNode* decl : struct_type->varDecls) {
+				auto member_param_id= context.newNode<IdentifierNode>();
+				member_param_id->name= decl->identifier->name;
+				
+				auto member_param= context.newNode<VarDeclNode>();
+				member_param->param= true;
+				member_param->valueType= decl->valueType;
+				member_param->identifier= member_param_id;
+				member_param_id->boundTo= member_param;
+				ctor_func_type->params.emplace_back(member_param);
+
 				auto access_op= context.newNode<BiOpNode>();
-				access_op->opType= BiOpType::rightArrow;
+				access_op->opType= BiOpType::dot;
 				access_op->lhs= self_id;
 				access_op->rhs= decl->identifier;
 
 				auto init_op= context.newNode<BiOpNode>();
 				init_op->opType= BiOpType::assign;
 				init_op->lhs= access_op;
-				init_op->rhs= decl->value;
+				init_op->rhs= member_param_id;
+				init_op->endStatement= true;
 
 				// Add initialization to ctor func
 				ctor_block->nodes.emplace_back(init_op);
@@ -357,7 +370,12 @@ private:
 				// Remove initialization from struct block
 				decl->value= nullptr;
 			}
-			structInitVars.clear();
+
+			auto ret= context.newNode<CtrlStatementNode>();
+			ret->statementType= CtrlStatementType::return_;
+			ret->value= self_id;
+			ret->endStatement= true;
+			ctor_block->nodes.emplace_back(ret);
 
 			globalInsertRequests.emplace_back(ctor_func);
 		}
@@ -365,44 +383,43 @@ private:
 
 	void mod(VarDeclNode& var)
 	{
-		if (scopeStack.top() == ScopeType::structure && var.value) {
-			// Var is assigned inside struct
-			// -> generate constructor
-			structInitVars.push_back(&var);
-		}
 		assert(var.valueType);
+		if (var.valueType->type != AstNodeType::identifier) {
+			if (var.value)
+				mod(*var.value);
+			return;
+		}
 
-		// Add constructor call
-		if (var.valueType->type == AstNodeType::identifier) {
-			auto&& value_type_id= static_cast<const IdentifierNode&>(
-					*var.valueType);
+		// Add compiler-generated ctor call
+		assert(var.valueType->type == AstNodeType::identifier);
+		auto&& value_type_id= static_cast<const IdentifierNode&>(
+				*var.valueType);
+		auto& type_decl= static_cast<VarDeclNode&>(*NONULL(value_type_id.boundTo));
+		if (NONULL(type_decl.valueType)->type == AstNodeType::structType) {
+			auto ctor_id= context.newNode<IdentifierNode>();
+			ctor_id->name= ctorName(value_type_id.name);
 
-			auto& type_def= static_cast<VarDeclNode&>(*NONULL(value_type_id.boundTo));
+			auto ctor_call= context.newNode<CallNode>();
+			ctor_call->func= ctor_id;
 
-			if (NONULL(type_def.valueType)->type == AstNodeType::structType) {
-				auto ctor_id= context.newNode<IdentifierNode>();
-				ctor_id->name= ctorName(value_type_id.name);
-
-				auto ptr_to_var= context.newNode<UOpNode>();
-				ptr_to_var->opType= UOpType::ref;
-				ptr_to_var->target= var.identifier;
-
-				auto ctor_call= context.newNode<CallNode>();
-				ctor_call->func= ctor_id;
-				ctor_call->args.push_back(ptr_to_var);
-
-				localInsertRequests.emplace_back(ctor_call);
+			// Move args from ctor call to the compiler-generated call
+			if (var.value) {
+				assert(var.value->type == AstNodeType::call);
+				auto init_call= static_cast<CallNode*>(var.value);
+				mod(*init_call); // Routes arguments
+				for (auto&& arg : init_call->args) {
+					ctor_call->args.emplace_back(arg);
+				}
+				var.value= ctor_call;
 			}
 		}
-		if (var.value) {
-			mod(*var.value);
-		}
+		
 	}
 
 	void mod(CallNode& call)
 	{
-		if (call.args.size() != call.argRouting.size())
-			return; // Generated C function
+		if (compilerGenerated(call))
+			return;
 
 		// Resolve argument routing
 		std::vector<AstNode*> new_args;
