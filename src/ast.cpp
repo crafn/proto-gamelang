@@ -28,6 +28,15 @@ void parseCheck(bool expr, const std::string& msg)
 	assert(expr);
 }
 
+bool isBuiltinIdentifier(const std::string& name)
+{
+	return	name == "int" ||
+			name == "void" ||
+			name == "bool" ||
+			name == "true" ||
+			name == "false";
+}
+
 /// Transforms tokens to an abstract syntax tree
 struct Parser {
 	Parser(const Tokens& t): tokens(t) {}
@@ -109,11 +118,11 @@ private:
 		auto decl= parseVarDeclBody(tok, constant);
 
 		if (decl->value) {
-			parseCheck(	decl->value->endStatement,
-						"Missing ; after var decl: " + decl->identifier->name);
+			parseCheck(	containsEndStatement(*decl->value),
+						"Missing ; after value of decl: " + decl->identifier->name);
 		} else if (decl->valueType) {
-			parseCheck(	decl->valueType->endStatement,
-						"Missing ; after var decl: " + decl->identifier->name);
+			parseCheck(	containsEndStatement(*decl->valueType),
+						"Missing ; after type of decl: " + decl->identifier->name);
 		}
 
 		return decl;
@@ -293,7 +302,7 @@ private:
 	{
 		auto type= newNode<IdentifierNode>();
 		type->name= tok->text;
-		if (type->name == "int" || type->name == "void")
+		if (isBuiltinIdentifier(type->name))
 			type->boundTo= &context.getBuiltinTypeDecl();
 		log(type->name);
 		nextToken(tok);
@@ -312,6 +321,7 @@ private:
 		if (tok->type != TokenType::endStatement) {
 			ret->value= parseExpr(tok);
 		} else {
+			ret->endStatement= true;
 			advance(tok);
 		}
 		return ret;

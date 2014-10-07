@@ -3,21 +3,26 @@ import os, sys
 
 test_files= [
 	"declarations.gl",
-	"func_args.gl"
+	"func_args.gl",
+	"simple_structs.gl"
 ]
 
 if __name__ == "__main__":
-	errors= []
+	log= []
+	failure_count= 0
 	for test in test_files:
 		ret= os.system("./compiler ./tests/" + test)
-		if ret != 0:
-			errors.append(test)
+		if ret == 0:
+			log.append("  " + test)
+		else:
+			failure_count = failure_count + 1
+			log.append("* " + test)
 
-	if len(errors) == 0:
+	if failure_count == 0:
 		print("*** All tests completed ***")
 	else:
-		print("*** FAILED TESTS (" + str(len(errors)) + ") ***")
-		for e in errors:
-			print("  " + e)
-		sys.exit(1)
+		print("*** FAILED TESTS (" + str(failure_count) + ") ***")
+
+	for row in log:
+		print(row)
 

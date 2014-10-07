@@ -53,6 +53,7 @@ private:
 	void gen(const GlobalNode& global)
 	{
 		emit("#include <stdlib.h>\n");
+		emit("#include <stdbool.h>\n");
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
 			emit(";\n");
@@ -209,8 +210,10 @@ private:
 	void gen(const QualifierNode& qual)
 	{
 		gen(*NONULL(qual.target));
-		if (qual.qualifierType == QualifierType::pointer)
+		if (	qual.qualifierType == QualifierType::pointer ||
+				qual.qualifierType == QualifierType::reference)
 			emit("*");
+
 	}
 
 	void gen(const LabelNode& label)
