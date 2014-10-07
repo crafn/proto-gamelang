@@ -5,7 +5,7 @@ let main := fn () -> int
 	loop {
 		i = i + 1;
 
-		if (i == 0) { break; }
+		if (i > 100) { break; }
 		if (i < 10) { continue; }
 
 		foo();
