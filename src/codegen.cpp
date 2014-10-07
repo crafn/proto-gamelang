@@ -180,17 +180,17 @@ private:
 		gen(*NONULL(op.rhs));
 	}
 
-	void gen(const CtrlStatementNode& ret)
+	void gen(const CtrlStatementNode& ctrl)
 	{
-		switch (ret.statementType) {
+		switch (ctrl.statementType) {
 			case CtrlStatementType::return_: emit("return "); break;
 			case CtrlStatementType::goto_: emit("goto "); break;
 			case CtrlStatementType::break_: emit("break"); break;
 			default: emit("unknown_ctrl_statement");
 		}
 	
-		if (ret.value)
-			gen(*ret.value);
+		if (ctrl.value)
+			gen(*ctrl.value);
 	}
 
 	void gen(const CallNode& call)
@@ -260,7 +260,11 @@ private:
 		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node);
 		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
-		CondMod<AstNodeType::call,       CallNode>::eval(*this, node);
+		CondMod<AstNodeType::uOp,           UOpNode>::eval(*this, node);
+		CondMod<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
+		CondMod<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
+		CondMod<AstNodeType::call,          CallNode>::eval(*this, node);
+		CondMod<AstNodeType::qualifier,     QualifierNode>::eval(*this, node);
 	}
 
 	void mod(GlobalNode& global)
@@ -382,36 +386,24 @@ private:
 	void mod(VarDeclNode& var)
 	{
 		assert(var.valueType);
-		if (var.valueType->type != AstNodeType::identifier) {
-			if (var.value)
-				mod(*var.value);
-			return;
-		}
+		if (var.value)
+			mod(*var.value);
+	}
 
-		// Add compiler-generated ctor call
-		assert(var.valueType->type == AstNodeType::identifier);
-		auto&& value_type_id= static_cast<const IdentifierNode&>(
-				*var.valueType);
-		auto& type_decl= static_cast<VarDeclNode&>(*NONULL(value_type_id.boundTo));
-		if (NONULL(type_decl.valueType)->type == AstNodeType::structType) {
-			auto ctor_id= context.newNode<IdentifierNode>();
-			ctor_id->name= ctorName(value_type_id.name);
+	void mod(UOpNode& op)
+	{
+		mod(*NONULL(op.target));
+	}
 
-			auto ctor_call= context.newNode<CallNode>();
-			ctor_call->func= ctor_id;
-
-			// Move args from ctor call to the compiler-generated call
-			if (var.value) {
-				assert(var.value->type == AstNodeType::call);
-				auto init_call= static_cast<CallNode*>(var.value);
-				mod(*init_call); // Routes arguments
-				for (auto&& arg : init_call->args) {
-					ctor_call->args.emplace_back(arg);
-				}
-				var.value= ctor_call;
-			}
-		}
-		
+	void mod(BiOpNode& op)
+	{
+		mod(*NONULL(op.lhs));
+		mod(*NONULL(op.rhs));
+	}
+	
+	void mod(CtrlStatementNode& ctrl)
+	{
+		mod(*NONULL(ctrl.value));
 	}
 
 	void mod(CallNode& call)
@@ -436,6 +428,25 @@ private:
 		call.implicitArgs.clear();
 		call.argRouting.clear(); // Routing is not up-to-date anymore
 		call.namedArgs.clear(); // No named args in C
+
+		for (auto&& arg : call.args)
+			mod(*NONULL(arg));
+
+		// Handle ctor calls
+		assert(NONULL(NONULL(call.func)->boundTo)->type == AstNodeType::varDecl);
+		auto func_decl= static_cast<VarDeclNode*>(call.func->boundTo);
+		if (NONULL(func_decl->valueType)->type == AstNodeType::structType) {
+			// Swap `Type(..)` to compiler-generated ctor call
+			auto ctor_id= context.newNode<IdentifierNode>();
+			ctor_id->name= ctorName(NONULL(func_decl->identifier)->name);
+
+			call.func= ctor_id;
+		}
+	}
+
+	void mod(QualifierNode& qual)
+	{
+		mod(*NONULL(qual.target));
 	}
 
 	template <AstNodeType nodeType, typename T>

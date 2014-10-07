@@ -1,0 +1,26 @@
+let Block := struct
+{
+	var height : int;
+	var width : int;
+};
+
+let Tower := struct
+{
+	var top : Block;
+	var bottom : Block;
+};
+
+let willFall := fn (t : ^Tower) -> bool
+{ t->top.width > t->bottom.width };
+
+let main := fn () -> int
+{
+	var tower := Tower(
+		.top= Block(10, 10),
+		.bottom= Block(.height= 1, .width= 5)
+	);
+
+	willFall(&tower);
+
+	return 0;
+};

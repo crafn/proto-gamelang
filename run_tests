@@ -4,7 +4,8 @@ import os, sys
 test_files= [
 	"declarations.gl",
 	"func_args.gl",
-	"simple_structs.gl"
+	"simple_structs.gl",
+	"struct_composition.gl"
 ]
 
 if __name__ == "__main__":
