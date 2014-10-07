@@ -7,9 +7,9 @@ let CatToy := struct
 
 let Cat := struct
 {
-    var poisonClaw : bool = false;
-    var toy : ^CatToy; // Every cat has one
-    var owner : ?Human = null; // This is optional
+	var poisonClaw : bool = false;
+	var toy : ^CatToy; // Every cat has one
+	var owner : ?Human = null; // This is optional
 };
 
 let main := fn () -> int
