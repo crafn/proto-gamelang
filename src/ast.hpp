@@ -191,7 +191,8 @@ struct BiOpNode final : AstNode {
 enum class CtrlStatementType {
 	return_,
 	goto_,
-	break_
+	break_,
+	continue_
 };
 
 /// `return value`, `break`

@@ -205,6 +205,7 @@ private:
 			case CtrlStatementType::return_: emit("return "); break;
 			case CtrlStatementType::goto_: emit("goto "); break;
 			case CtrlStatementType::break_: emit("break"); break;
+			case CtrlStatementType::continue_: emit("continue"); break;
 			default: emit("unknown_ctrl_statement");
 		}
 	
@@ -422,7 +423,8 @@ private:
 	
 	void mod(CtrlStatementNode& ctrl)
 	{
-		mod(*NONULL(ctrl.value));
+		if (ctrl.value)
+			mod(*ctrl.value);
 	}
 
 	void mod(CallNode& call)

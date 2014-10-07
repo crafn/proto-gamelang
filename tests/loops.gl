@@ -1,0 +1,24 @@
+let foo := fn () { };
+let main := fn () -> int
+{
+	var i : int = 0;
+	loop {
+		i = i + 1;
+
+		if (i == 0) { break; }
+		if (i < 10) { continue; }
+
+		foo();
+	}
+
+	i = 0;
+	loop_start:
+	i = i + 1;
+	if (i < 100) {
+		goto loop_start;
+	}
+
+	/// @todo `for`
+
+	return 0;
+};

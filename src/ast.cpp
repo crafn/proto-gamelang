@@ -338,6 +338,9 @@ private:
 	CtrlStatementNode* parseBreak(It& tok)
 	{ return parseCtrlStatement(tok, "break", CtrlStatementType::break_); }
 
+	CtrlStatementNode* parseContinue(It& tok)
+	{ return parseCtrlStatement(tok, "continue", CtrlStatementType::continue_); }
+
 	AstNode* parseIfExpr(It& tok)
 	{
 		assert(tok->text == "if");
@@ -454,6 +457,8 @@ private:
 				return parseGoto(tok);
 			} else if (tok->text == "break") {
 				return parseBreak(tok);
+			} else if (tok->text == "continue") {
+				return parseContinue(tok);
 			} else if (tok->text == "null") {
 				return parseRestExpr(parseNullLiteral(tok), tok, greedy);
 			} else {

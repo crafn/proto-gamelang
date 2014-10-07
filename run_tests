@@ -7,7 +7,8 @@ test_files= [
 	"simple_structs.gl",
 	"struct_composition.gl",
         "arithmetic.gl",
-        "conditionals.gl"
+        "conditionals.gl",
+        "loops.gl"
 ]
 
 if __name__ == "__main__":
