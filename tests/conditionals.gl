@@ -1,0 +1,10 @@
+let foo := fn () { };
+let main := fn () -> int
+{
+	var a : int = 2;
+	if (a == 2) {
+		foo();
+	}
+	/// @todo `else`
+	return 0;
+};
