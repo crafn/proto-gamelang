@@ -31,6 +31,8 @@ void parseCheck(bool expr, const std::string& msg)
 bool isBuiltinIdentifier(const std::string& name)
 {
 	return	name == "int" ||
+			name == "int32" ||
+			name == "int64" ||
 			name == "void" ||
 			name == "bool" ||
 			name == "true" ||

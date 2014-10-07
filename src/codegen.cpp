@@ -52,8 +52,12 @@ private:
 
 	void gen(const GlobalNode& global)
 	{
-		emit("#include <stdlib.h>\n");
 		emit("#include <stdbool.h>\n");
+		emit("#include <stdint.h>\n");
+		emit("#include <stdlib.h>\n");
+		emit("typedef int32_t int32;\n");
+		emit("typedef int64_t int64;\n");
+		/// @todo Rest
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
 			emit(";\n");
