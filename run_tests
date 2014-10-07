@@ -16,7 +16,7 @@ if __name__ == "__main__":
 		if ret == 0:
 			log.append("  " + test)
 		else:
-			failure_count = failure_count + 1
+			failure_count += 1
 			log.append("* " + test)
 
 	if failure_count == 0:

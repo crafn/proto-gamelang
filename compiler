@@ -6,7 +6,7 @@ if __name__ == "__main__":
 	# Compile gamelang to C
 	ret= os.system("./debug/debug " + sys.argv[1])
 	if ret != 0:
-		sys.exit(1);
+		sys.exit(1)
 
 	# Compile C to binary
 	ret= os.system(
@@ -19,5 +19,5 @@ if __name__ == "__main__":
 	if ret == 0:
 		sys.exit(0)
 	else:
-		sys.exit(1);
+		sys.exit(1)
 
