@@ -416,7 +416,7 @@ private:
 		return comment;
 	}
 
-	/// greedy: parse as much as possible
+	/// greedy: parse whole statement
 	///   e.g. `(stuff + 2) = 5;` -> whole statement is parsed
 	/// non-greedy: parse first full sub-statement
 	///   e.g. `(stuff + 2) = 5;` -> only `(stuff + 2)` is parsed
@@ -469,6 +469,12 @@ private:
 			return parseQualifiedType(tok);
 		} else if (uOpToken(tok->type)) {
 			return parseUOp(tok);
+		} else if (tok->type == TokenType::openParen) {
+			nextToken(tok);
+			// Parse the full expression inside parens
+			auto expr= parseExpr(tok, true);
+			advance(tok); // Hop over `)`
+			return parseRestExpr(expr, tok, greedy);
 		}
 		parseCheck(false, "Broken expression at " + tok->text);
 	}
@@ -484,12 +490,10 @@ private:
 			return beginning;
 		}
 
-		/// @todo Don't return if parsing in brackets
 		if (tok->type == TokenType::comma) {
 			return beginning;
 		}
 
-		/// @todo Don't return if parsing in brackets
 		if (tok->type == TokenType::closeParen) {
 			return beginning;
 		}
@@ -521,6 +525,7 @@ private:
 				case TokenType::add:
 				case TokenType::sub:
 				case TokenType::mul:
+				case TokenType::div:
 				case TokenType::equals:
 				case TokenType::nequals:
 				case TokenType::less:

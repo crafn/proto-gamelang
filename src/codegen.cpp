@@ -174,14 +174,29 @@ private:
 
 	void gen(const BiOpNode& op)
 	{
+		// Quick hack for incorrect parens due to lack of op precedence
+		/// @todo Remove
+		bool needs_parens= false;
+		if (	op.opType == BiOpType::add ||
+				op.opType == BiOpType::sub ||
+				op.opType == BiOpType::mul ||
+				op.opType == BiOpType::div ||
+				op.opType == BiOpType::equals ||
+				op.opType == BiOpType::nequals)
+			needs_parens= true;
+
 		const char* spacing= "";
 		if (	op.opType != BiOpType::dot &&
 				op.opType != BiOpType::rightArrow)
 			spacing= " ";
 
+		if (needs_parens)
+			emit("(");
 		gen(*NONULL(op.lhs));
 		emit(spacing + std::string(str(op.opType)) + spacing);
 		gen(*NONULL(op.rhs));
+		if (needs_parens)
+			emit(")");
 	}
 
 	void gen(const CtrlStatementNode& ctrl)

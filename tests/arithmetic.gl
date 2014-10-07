@@ -1,0 +1,8 @@
+let main := fn () -> int
+{
+	var a : int = 1 + 2;
+	var b : int = 1*2;
+	var c : int = (1 + 2)*2;
+	var d : int = (a + b/c)*(10*b - a); 
+	return 0;
+};

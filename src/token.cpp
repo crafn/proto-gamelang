@@ -68,6 +68,7 @@ TokenType singleCharTokenType(char ch)
 		case '+': return TokenType::add;
 		case '-': return TokenType::sub;
 		case '*': return TokenType::mul;
+		case '/': return TokenType::div;
 		case '.': return TokenType::dot;
 		case '&': return TokenType::ref;
 		case '^': return TokenType::hat;

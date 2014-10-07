@@ -5,13 +5,15 @@ test_files= [
 	"declarations.gl",
 	"func_args.gl",
 	"simple_structs.gl",
-	"struct_composition.gl"
+	"struct_composition.gl",
+        "arithmetic.gl"
 ]
 
 if __name__ == "__main__":
 	log= []
 	failure_count= 0
 	for test in test_files:
+                print(test)
 		ret= os.system("./compiler ./tests/" + test)
 		if ret == 0:
 			log.append("  " + test)
