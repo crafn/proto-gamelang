@@ -409,6 +409,8 @@ private:
 				return newNode<EndStatementNode>();
 			case TokenType::openParen:
 				return parseParens();
+			case TokenType::openBlock:
+				return parseBlock();
 			case TokenType::ref:
 			case TokenType::hat:
 			case TokenType::question:
@@ -431,6 +433,8 @@ private:
 				return parseCtrlStatement(CtrlStatementType::break_);
 			case TokenType::kwContinue:
 				return parseCtrlStatement(CtrlStatementType::continue_);
+			case TokenType::kwElse:
+				return parseCtrlStatement(CtrlStatementType::else_);
 			case TokenType::kwNull:
 				return newNode<NullLiteralNode>();
 			case TokenType::kwLoop:

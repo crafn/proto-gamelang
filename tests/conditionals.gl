@@ -5,6 +5,14 @@ let main := fn () -> int
 	if (a == 2) {
 		foo();
 	}
-	/// @todo `else`
+
+	if (a == 4) {
+		a = 5;
+	} else if (a == 5) {
+		foo();
+	} else {
+		a = 6;
+	}
+
 	return 0;
 };

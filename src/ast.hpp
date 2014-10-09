@@ -198,7 +198,8 @@ enum class CtrlStatementType {
 	return_,
 	goto_,
 	break_,
-	continue_
+	continue_,
+	else_
 };
 
 /// `return value`, `break`

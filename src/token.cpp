@@ -110,14 +110,14 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwBreak;
 	if (str == "continue")
 		return TokenType::kwContinue;
+	if (str == "else")
+		return TokenType::kwElse;
 	if (str == "null")
 		return TokenType::kwNull;
 	if (str == "loop")
 		return TokenType::kwLoop;
 	if (str == "if")
 		return TokenType::kwIf;
-	if (str == "else")
-		return TokenType::kwElse;
 	return TokenType::unknown;
 }
 

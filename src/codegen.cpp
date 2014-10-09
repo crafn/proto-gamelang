@@ -61,6 +61,7 @@ private:
 		/// @todo Rest
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
+			emit("\n");
 		}
 	}
 
@@ -220,6 +221,7 @@ private:
 			case CtrlStatementType::goto_: emit("goto "); break;
 			case CtrlStatementType::break_: emit("break"); break;
 			case CtrlStatementType::continue_: emit("continue"); break;
+			case CtrlStatementType::else_: emit("else "); break;
 			default: emit("unknown_ctrl_statement");
 		}
 	
