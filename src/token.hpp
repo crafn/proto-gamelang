@@ -45,6 +45,9 @@ enum class TokenType {
 	kwBreak, // break
 	kwContinue, // continue
 	kwNull, // null
+	kwLoop, // loop
+	kwIf, // if
+	kwElse, // else
 	unknown
 };
 
@@ -88,6 +91,9 @@ static const char* enumStr(TokenType type)
 		case TokenType::kwBreak: return "kwBreak";
 		case TokenType::kwContinue: return "kwContinue";
 		case TokenType::kwNull: return "kwNull";
+		case TokenType::kwLoop: return "kwLoop";
+		case TokenType::kwIf: return "kwIf";
+		case TokenType::kwElse: return "kwElse";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -133,6 +139,9 @@ static const char* str(TokenType type)
 		case TokenType::kwBreak: return "break";
 		case TokenType::kwContinue: return "continue";
 		case TokenType::kwNull: return "null";
+		case TokenType::kwLoop: return "loop";
+		case TokenType::kwIf: return "if";
+		case TokenType::kwElse: return "else";
 		case TokenType::unknown:
 		default: return "???";
 	}

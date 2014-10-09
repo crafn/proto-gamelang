@@ -112,6 +112,12 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwContinue;
 	if (str == "null")
 		return TokenType::kwNull;
+	if (str == "loop")
+		return TokenType::kwLoop;
+	if (str == "if")
+		return TokenType::kwIf;
+	if (str == "else")
+		return TokenType::kwElse;
 	return TokenType::unknown;
 }
 
