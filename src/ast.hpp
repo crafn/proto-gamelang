@@ -33,6 +33,7 @@ std::list<T> vecToList(const std::vector<T>& l)
 
 enum class AstNodeType {
 	global,
+	endStatement,
 	identifier,
 	block,
 	varDecl,
@@ -52,8 +53,6 @@ enum class AstNodeType {
 
 struct AstNode {
 	AstNodeType type;
-	/// true if node has `;` immediately after it
-	bool endStatement= false;
 
 	AstNode(AstNodeType t): type(t) {}
 	virtual std::vector<AstNode*> getSubNodes() const = 0;
@@ -65,6 +64,11 @@ struct GlobalNode final : AstNode {
 
 	GlobalNode(): AstNode(AstNodeType::global) {}
 	std::vector<AstNode*> getSubNodes() const override { return listToVec(nodes); }
+};
+
+struct EndStatementNode final : AstNode {
+	EndStatementNode(): AstNode(AstNodeType::endStatement) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
 struct VarDeclNode;
@@ -163,7 +167,9 @@ struct NullLiteralNode final : AstNode {
 
 enum class UOpType {
 	declType,
-	addrOf
+	addrOf,
+	pointer, // type qualifier
+	reference // type qualifier
 };
 
 /// `!flag`
@@ -223,20 +229,6 @@ struct CallNode final : AstNode {
 	{ auto ret= listToVec(args); ret.push_back(func); return ret; }
 };
 
-enum class QualifierType {
-	none,
-	pointer,
-	reference
-};
-
-struct QualifierNode final : AstNode {
-	QualifierType qualifierType= QualifierType::none;
-	AstNode* target= nullptr;
-
-	QualifierNode(): AstNode(AstNodeType::qualifier) {}
-	std::vector<AstNode*> getSubNodes() const override { return {target}; }
-};
-
 struct LabelNode final : AstNode {
 	IdentifierNode* identifier= nullptr;
 	LabelNode(): AstNode(AstNodeType::label) {}
@@ -279,7 +271,6 @@ private:
 	std::unique_ptr<VarDeclNode> builtinDecl;
 };
 
-bool containsEndStatement(const AstNode& node);
 AstContext genAst(const Tokens& tokens);
 
 } // gamelang

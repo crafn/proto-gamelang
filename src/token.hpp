@@ -8,7 +8,8 @@ namespace gamelang
 {
 
 enum class TokenType {
-	identifier, // single_word_like_this
+	eof,
+	name, // single_word_like_this
 	number, // 2538
 	assign, // =
 	declaration, // :
@@ -35,13 +36,23 @@ enum class TokenType {
 	question, // ?
 	squote, // '
 	comment, // //
+	kwVar, // var
+	kwLet, // let
+	kwFn, // fn
+	kwStruct, // struct
+	kwReturn, // return
+	kwGoto, // goto
+	kwBreak, // break
+	kwContinue, // continue
+	kwNull, // null
 	unknown
 };
 
 static const char* enumStr(TokenType type)
 {
 	switch (type) {
-		case TokenType::identifier: return "identifier";
+		case TokenType::eof: return "eof";
+		case TokenType::name: return "name";
 		case TokenType::number: return "number";
 		case TokenType::assign: return "assign";
 		case TokenType::declaration: return "declaration";
@@ -68,6 +79,15 @@ static const char* enumStr(TokenType type)
 		case TokenType::question: return "question";
 		case TokenType::squote: return "squote";
 		case TokenType::comment: return "comment";
+		case TokenType::kwVar: return "kwVar";
+		case TokenType::kwLet: return "kwLet";
+		case TokenType::kwFn: return "kwFn";
+		case TokenType::kwStruct: return "kwStruct";
+		case TokenType::kwReturn: return "kwReturn";
+		case TokenType::kwGoto: return "kwGoto";
+		case TokenType::kwBreak: return "kwBreak";
+		case TokenType::kwContinue: return "kwContinue";
+		case TokenType::kwNull: return "kwNull";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -76,7 +96,8 @@ static const char* enumStr(TokenType type)
 static const char* str(TokenType type)
 {
 	switch (type) {
-		case TokenType::identifier: return "";
+		case TokenType::eof: return "";
+		case TokenType::name: return "";
 		case TokenType::number: return "";
 		case TokenType::assign: return "=";
 		case TokenType::declaration: return "";
@@ -103,6 +124,15 @@ static const char* str(TokenType type)
 		case TokenType::question: return "?";
 		case TokenType::squote: return "'";
 		case TokenType::comment: return "//";
+		case TokenType::kwVar: return "var";
+		case TokenType::kwLet: return "let";
+		case TokenType::kwFn: return "fn";
+		case TokenType::kwStruct: return "struct";
+		case TokenType::kwReturn: return "return";
+		case TokenType::kwGoto: return "goto";
+		case TokenType::kwBreak: return "break";
+		case TokenType::kwContinue: return "continue";
+		case TokenType::kwNull: return "null";
 		case TokenType::unknown:
 		default: return "???";
 	}

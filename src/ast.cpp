@@ -20,6 +20,15 @@ void log(const std::string& str)
 	std::cout << str << std::endl;
 }
 
+struct LogIndentGuard {
+	int& value;
+	LogIndentGuard(int& v): value(v) { ++value; }
+	~LogIndentGuard() { --value; }
+};
+
+LogIndentGuard logIndentGuard()
+{ return LogIndentGuard{logIndent}; }
+
 void parseCheck(bool expr, const std::string& msg)
 {
 	if (!expr)
@@ -39,6 +48,434 @@ bool isBuiltinIdentifier(const std::string& name)
 			name == "false";
 }
 
+/// Binding power
+enum class Bp : int {
+	eof= 0,
+	comment,
+	endBraces,
+	keyword,
+	literal,
+	name,
+	comma,
+	statement,
+	assignment,
+	comp,
+	typedecl,
+	sum,
+	prod,
+	block,
+	parens,
+	prefix,
+	member
+};
+
+Bp tokenLbp(TokenType t)
+{
+	switch (t) {
+		case TokenType::eof:          return Bp::eof;
+		case TokenType::name:         return Bp::literal;
+		case TokenType::number:       return Bp::literal;
+		case TokenType::assign:       return Bp::assignment;
+		case TokenType::declaration:  return Bp::typedecl;
+		case TokenType::endStatement: return Bp::statement;
+		case TokenType::comma:        return Bp::comma;
+		case TokenType::openParen:    return Bp::parens;
+		case TokenType::closeParen:   return Bp::endBraces;
+		case TokenType::openBlock:    return Bp::block;
+		case TokenType::closeBlock:   return Bp::endBraces;
+		case TokenType::rightArrow:   return Bp::member;
+		case TokenType::equals:       return Bp::comp;
+		case TokenType::nequals:      return Bp::comp;
+		case TokenType::less:         return Bp::comp;
+		case TokenType::greater:      return Bp::comp;
+		case TokenType::add:          return Bp::sum;
+		case TokenType::sub:          return Bp::sum;
+		case TokenType::mul:          return Bp::prod;
+		case TokenType::div:          return Bp::prod;
+		case TokenType::dot:          return Bp::member;
+		case TokenType::ref:          return Bp::prefix;
+		case TokenType::hat:          return Bp::prefix;
+		case TokenType::question:     return Bp::prefix;
+		case TokenType::comment:      return Bp::comment;
+		case TokenType::kwVar:        return Bp::keyword;
+		case TokenType::kwLet:        return Bp::keyword;
+		case TokenType::kwFn:         return Bp::keyword;
+		case TokenType::kwStruct:     return Bp::keyword;
+		case TokenType::kwReturn:     return Bp::keyword;
+		case TokenType::kwGoto:       return Bp::keyword;
+		case TokenType::kwBreak:      return Bp::keyword;
+		case TokenType::kwContinue:   return Bp::keyword;
+		default: assert(0 && "Missing token binding power");
+	}
+}
+
+struct Parser {
+	Parser(const Tokens& t): tokens(t) {}
+
+	AstContext parse()
+	{
+		// Start parsing
+		auto root= newNode<GlobalNode>();
+		token= tokens.begin();
+		while (token->type != TokenType::eof) {
+			root->nodes.emplace_back(parseExpr());
+		}
+		return std::move(context);
+	}
+
+private:
+	const Tokens& tokens;
+	Tokens::const_iterator token;
+	AstContext context;
+
+	using It= Tokens::const_iterator;
+	template <typename T>
+	using UPtr= std::unique_ptr<T>;
+	using Str= std::string;
+
+	template <typename T>
+	T* newNode()
+	{ return context.newNode<T>(); }
+
+	void advance()
+	{
+		assert(token != tokens.end());
+		++token;
+		assert(token != tokens.end());
+	}
+
+	void match(TokenType t, std::string err= "Match failed")
+	{
+		parseCheck(t == token->type, err);
+		advance();
+	}
+
+	AstNode* deducedType(AstNode& thing)
+	{
+		if (thing.type == AstNodeType::block) {
+			const BlockNode& block= static_cast<const BlockNode&>(thing);
+			if (block.structType)
+				return block.structType;
+			if (block.funcType)
+				return block.funcType;		
+		} else {
+			auto op= newNode<UOpNode>();
+			op->opType= UOpType::declType;
+			op->target= &thing;
+			return op;
+		}
+		
+		parseCheck(false, "Unable to deduce type");
+	}
+
+	NumLiteralNode* parseNumLiteral(const std::string& text)
+	{
+		auto literal= newNode<NumLiteralNode>();
+		literal->value= text;
+		log(literal->value);
+		return literal;
+	}
+
+	IdentifierNode* parseIdentifier(const std::string& text)
+	{
+		auto type= newNode<IdentifierNode>();
+		type->name= text;
+		if (isBuiltinIdentifier(type->name))
+			type->boundTo= &context.getBuiltinTypeDecl();
+		log(type->name);
+		return type;
+	}
+
+	AstNode* parseParens()
+	{
+		auto expr= parseExpr();
+		match(TokenType::closeParen, "Missing )");
+		return expr;
+	}
+	
+	/// Parses `name : Type = defaultValue` part of the decl
+	VarDeclNode* parseVarDecl(bool constant)
+	{
+		auto var= newNode<VarDeclNode>();
+		var->constant= constant;
+
+		auto var_name= token->text;
+		match(TokenType::name, "Var name must be in form abc123");
+		var->identifier= parseIdentifier(var_name);
+		var->identifier->boundTo= var;
+
+		if (token->type != TokenType::assign) { // Explicit type
+			match(TokenType::declaration, "Expected :");
+			log(":");
+			if (token->type != TokenType::assign)
+				var->valueType= parseExpr(Bp::typedecl);
+		}
+
+		if (token->type == TokenType::endStatement)
+			return var;
+
+		if (token->type == TokenType::assign) {
+			match(TokenType::assign);
+			log("=");
+			var->value= parseExpr();
+
+			if (NONULL(var->value)->type == AstNodeType::block) {
+				auto& block= static_cast<BlockNode&>(*NONULL(var->value));
+				block.boundTo= var->identifier;
+			}
+
+			if (!var->valueType) // Deduce implicit type
+				var->valueType= deducedType(*var->value);
+		}
+
+		assert(var->valueType);
+		return var;
+	}
+
+	FuncTypeNode* parseFuncType()
+	{
+		log("parseFuncType");
+		auto&& log_indent= logIndentGuard();
+
+		log("(");
+		match(TokenType::openParen, "Missing ( in fn type");
+
+		// Parameters
+		auto func_type= newNode<FuncTypeNode>();
+		while (token->type != TokenType::closeParen) {
+			if (token->type == TokenType::comma)
+				advance();
+
+			auto param= parseVarDecl(true);
+			param->param= true;
+			func_type->params.push_back(param);
+			log(",");
+		}
+
+		match(TokenType::closeParen);
+		log(")");
+
+		// Return type
+		if (token->type == TokenType::rightArrow) {
+			advance();
+			func_type->returnType= parseExpr(Bp::block);
+		} else {
+			/// @todo Implicit return type
+			auto return_type= newNode<IdentifierNode>();
+			return_type->name= "void";
+			return_type->boundTo= &context.getBuiltinTypeDecl();
+			func_type->returnType= return_type;
+		}
+
+		return func_type;
+	}
+
+	StructTypeNode* parseStructType()
+	{
+		return newNode<StructTypeNode>();
+	}
+
+	BlockNode* parseBlock()
+	{
+		log("parseBlock");
+		auto&& log_indent= logIndentGuard();
+
+		auto block= newNode<BlockNode>();
+		while (token->type != TokenType::closeBlock) {
+			block->nodes.emplace_back(parseExpr());
+		}
+		match(TokenType::closeBlock);
+
+		return block;
+	}
+
+	CtrlStatementNode* parseCtrlStatement(CtrlStatementType t)
+	{
+		auto ret= newNode<CtrlStatementNode>();
+		ret->statementType= t;
+		if (token->type != TokenType::endStatement) {
+			ret->value= parseExpr();
+		}
+		return ret;
+	}
+
+	CommentNode* parseComment()
+	{
+		/// @todo Detect empty comment
+		auto comment= newNode<CommentNode>();
+		while (!token->lastOnLine) {
+			comment->text += token->text + " ";
+			advance();
+		}
+		comment->text += token->text + " ";
+		advance();
+		return comment;
+	}
+
+	UOpNode* parseUOp(TokenType t)
+	{
+		auto op_lbp= tokenLbp(t);
+		UOpType op_type;
+		switch (t) {
+			case TokenType::ref:
+				op_type= UOpType::addrOf;
+			break;
+			case TokenType::hat:
+				op_type= UOpType::reference;
+			break;
+			case TokenType::question:
+				op_type= UOpType::pointer;
+			break;
+			default: assert(0 && "Unknown UOp");
+		}
+
+		auto op= newNode<UOpNode>();
+		op->opType= op_type;
+		op->target= parseExpr(op_lbp);
+		return op;
+	}
+
+	CallNode* parseCall(AstNode& func)
+	{
+		/// @todo Support for calling arbitrary expr
+		parseCheck(	func.type == AstNodeType::identifier,
+					"Only simple func calls supported");
+		auto identifier= static_cast<IdentifierNode*>(&func);
+
+		auto call= newNode<CallNode>();
+		call->func= identifier;
+		while (token->type != TokenType::closeParen) {
+			if (token->type == TokenType::dot) { 
+				// Named argument
+				advance();
+				call->namedArgs.emplace_back(token->text);
+				match(	TokenType::name,
+						"Named argument not an identifier");
+				match(	TokenType::assign,
+						"Missing `=` when specifying named argument: "
+						+ call->namedArgs.back());
+			} else {
+				// Ordinary argument - empty string for name
+				call->namedArgs.emplace_back();	
+			}
+			
+			call->args.push_back(parseExpr(Bp::comma));
+
+			if (token->type == TokenType::comma)
+				advance();
+		}
+		match(TokenType::closeParen, "Missing )");
+		assert(call->args.size() == call->namedArgs.size());
+		return call;
+	}
+
+
+	AstNode* nud(It it)
+	{
+		switch (it->type) {
+			case TokenType::name:
+				return parseIdentifier(it->text);
+			case TokenType::number:
+				return parseNumLiteral(it->text);
+			case TokenType::endStatement:
+				return newNode<EndStatementNode>();
+			case TokenType::openParen:
+				return parseParens();
+			case TokenType::ref:
+			case TokenType::hat:
+			case TokenType::question:
+				return parseUOp(it->type);
+			case TokenType::comment:
+				return parseComment();
+			case TokenType::kwVar:
+				return parseVarDecl(false);
+			case TokenType::kwLet:
+				return parseVarDecl(true);
+			case TokenType::kwFn:
+				return parseFuncType();
+			case TokenType::kwStruct:
+				return parseStructType();
+			case TokenType::kwReturn:
+				return parseCtrlStatement(CtrlStatementType::return_);
+			case TokenType::kwGoto:
+				return parseCtrlStatement(CtrlStatementType::goto_);
+			case TokenType::kwBreak:
+				return parseCtrlStatement(CtrlStatementType::break_);
+			case TokenType::kwContinue:
+				return parseCtrlStatement(CtrlStatementType::continue_);
+			case TokenType::kwNull:
+				return newNode<NullLiteralNode>();
+
+			default:;
+		}
+
+		parseCheck(false, "Invalid nud token: " + it->text);
+	}
+
+	AstNode* led(AstNode& left, It it)
+	{
+		// Not sure if good solution
+		if (	left.type == AstNodeType::funcType &&
+				it->type != TokenType::endStatement) {
+			auto fn_type= static_cast<FuncTypeNode*>(&left);
+			auto block= parseBlock();
+			block->funcType= fn_type;
+			return block;
+		}
+		if (	left.type == AstNodeType::structType &&
+				it->type != TokenType::endStatement) {
+			auto st_type= static_cast<StructTypeNode*>(&left);
+			auto block= parseBlock();
+			block->structType= st_type;
+			for (AstNode* node : block->nodes) {
+				if (node->type != AstNodeType::varDecl)
+					continue;
+				auto decl= static_cast<VarDeclNode*>(node);
+				st_type->varDecls.emplace_back(decl);
+			}
+			return block;
+		}
+
+		switch (it->type) {
+			case TokenType::endStatement:
+				return &left;
+			case TokenType::openParen:
+				return parseCall(left);
+			default: // Assuming BiOp
+				{
+					auto op_type= it->type;
+					auto op_lbp= tokenLbp(it->type);
+					auto op= newNode<BiOpNode>();
+					op->opType= op_type;
+					op->lhs= &left;
+					op->rhs= parseExpr(op_lbp);
+					return op;
+				}
+		}
+
+		parseCheck(false, "Invalid led token: " + it->text);
+	}
+	
+	/// Pratt parser
+	AstNode* parseExpr(Bp rbp= Bp::statement)
+	{
+		assert(token->type != TokenType::eof);
+		auto guard= logIndentGuard();
+
+		It t= token;
+		advance();
+		assert(t->type != TokenType::eof);
+		AstNode* left= nud(t);
+		while (rbp < tokenLbp(token->type)) {
+			t= token;
+			advance();
+			left= led(*NONULL(left), t);
+		}
+		return left;
+	}
+};
+
+#if 0
 /// Transforms tokens to an abstract syntax tree
 struct Parser {
 	Parser(const Tokens& t): tokens(t) {}
@@ -67,15 +504,6 @@ private:
 	T* newNode()
 	{ return context.newNode<T>(); }
 
-	struct LogIndentGuard {
-		int& value;
-		LogIndentGuard(int& v): value(v) { ++value; }
-		~LogIndentGuard() { --value; }
-	};
-
-	LogIndentGuard logIndentGuard()
-	{ return LogIndentGuard{logIndent}; }
-
 	void nextToken(It& it)
 	{
 		assert(it != tokens.end());
@@ -84,167 +512,6 @@ private:
 	}
 
 	void advance(It& it) { ++it; }
-
-	AstNode* deducedType(AstNode& thing)
-	{
-		if (thing.type == AstNodeType::block) {
-			const BlockNode& block= static_cast<const BlockNode&>(thing);
-			if (block.structType)
-				return block.structType;
-			if (block.funcType)
-				return block.funcType;		
-		} else {
-			auto op= newNode<UOpNode>();
-			op->opType= UOpType::declType;
-			op->target= &thing;
-			return op;
-		}
-	}
-
-	VarDeclNode* parseVarDecl(It& tok)
-	{
-		log("parseVarDecl");
-		auto&& log_indent= logIndentGuard();
-
-		parseCheck(tok->type == TokenType::identifier, "Expected identifier");
-		bool constant= false;
-		if (tok->text == "var")
-			constant= false;
-		else if (tok->text == "let")
-			constant= true;
-		else
-			parseCheck(false, "Expected var/let");
-
-		nextToken(tok);
-
-		auto decl= parseVarDeclBody(tok, constant);
-
-		if (decl->value) {
-			parseCheck(	containsEndStatement(*decl->value),
-						"Missing ; after value of decl: " + decl->identifier->name);
-		} else if (decl->valueType) {
-			parseCheck(	containsEndStatement(*decl->valueType),
-						"Missing ; after type of decl: " + decl->identifier->name);
-		}
-
-		return decl;
-	}
-
-	/// Parses `name : Type = defaultValue` part of the decl
-	VarDeclNode* parseVarDeclBody(It& tok, bool constant)
-	{
-		auto var= newNode<VarDeclNode>();
-		var->constant= constant;
-
-		parseCheck(tok->type == TokenType::identifier, "Error in var decl name");
-		var->identifier= parseIdentifier(tok);
-		var->identifier->boundTo= var;
-
-		parseCheck(tok->type == TokenType::declaration, "Missing : in var decl");
-		nextToken(tok);
-
-		if (tok->type != TokenType::assign) { // Explicit type
-			log(":");
-			var->valueType= parseExpr(tok, false);
-		}
-
-		if (var->valueType && var->valueType->endStatement) 
-			return var;
-
-		if (tok->type == TokenType::assign) {
-			log("=");
-			nextToken(tok);
-			var->value= parseExpr(tok);
-
-			if (NONULL(var->value)->type == AstNodeType::block) {
-				auto& block= static_cast<BlockNode&>(*NONULL(var->value));
-				block.boundTo= var->identifier;
-			}
-
-			if (!var->valueType) // Deduce implicit type
-				var->valueType= deducedType(*var->value);
-		}
-
-		assert(var->valueType);
-		return var;
-	}
-
-	FuncTypeNode* parseFuncType(It& tok)
-	{
-		log("parseFuncType");
-		auto&& log_indent= logIndentGuard();
-
-		assert(tok->text == "fn");
-		nextToken(tok); // Skip "fn"
-
-		log(tok->text);
-		parseCheck(tok->type == TokenType::openParen, "Missing ( in fn type");
-		nextToken(tok);
-
-		// Arguments
-		auto func_type= newNode<FuncTypeNode>();
-		while (tok->type != TokenType::closeParen) {
-			if (tok->type == TokenType::comma)
-				nextToken(tok);
-
-			auto param= parseVarDeclBody(tok, true);
-			param->param= true;
-			func_type->params.push_back(param);
-		}
-		nextToken(tok);
-
-		// Return type
-		if (!func_type->endStatement && tok->type == TokenType::rightArrow) {
-			nextToken(tok);
-			func_type->returnType= parseExpr(tok);
-		} else {
-			/// @todo Implicit return type
-			auto return_type= newNode<IdentifierNode>();
-			return_type->name= "void";
-			return_type->boundTo= &context.getBuiltinTypeDecl();
-			func_type->returnType= return_type;
-		}
-
-		return func_type;
-	}
-
-	CallNode* parseCall(It& tok, IdentifierNode& identifier)
-	{
-		parseCheck(tok->type == TokenType::openParen, "Missing (");
-		nextToken(tok);
-
-		auto call= newNode<CallNode>();
-		call->func= &identifier;
-		while (tok->type != TokenType::closeParen) {
-			if (tok->type == TokenType::dot) { 
-				// Named argument
-
-				nextToken(tok);
-				parseCheck(	tok->type == TokenType::identifier,
-							"Named argument not an identifier");
-				call->namedArgs.emplace_back(tok->text);
-				nextToken(tok);
-
-				parseCheck(	tok->type == TokenType::assign,
-							"Missing `=` when specifying named argument: "
-								+ call->namedArgs.back());
-				nextToken(tok);
-			} else {
-				// Ordinary argument - empty string for name
-				call->namedArgs.emplace_back();	
-			}
-			
-			call->args.push_back(parseExpr(tok));
-
-			if (tok->type == TokenType::comma)
-				nextToken(tok);
-		}
-		assert(call->args.size() == call->namedArgs.size());
-		nextToken(tok);
-
-		return call;
-	}
-
 	BlockNode* parseBlock(It& tok)
 	{
 		log("parseBlock");
@@ -311,36 +578,6 @@ private:
 		return type;
 	}
 
-	CtrlStatementNode* parseCtrlStatement(	It& tok,
-											std::string text,
-											CtrlStatementType t)
-	{
-		assert(tok->text == text);
-		nextToken(tok);
-
-		auto ret= newNode<CtrlStatementNode>();
-		ret->statementType= t;
-		if (tok->type != TokenType::endStatement) {
-			ret->value= parseExpr(tok);
-		} else {
-			ret->endStatement= true;
-			advance(tok);
-		}
-		return ret;
-	}
-
-	CtrlStatementNode* parseReturn(It& tok)
-	{ return parseCtrlStatement(tok, "return", CtrlStatementType::return_); }
-
-	CtrlStatementNode* parseGoto(It& tok)
-	{ return parseCtrlStatement(tok, "goto", CtrlStatementType::goto_); }
-
-	CtrlStatementNode* parseBreak(It& tok)
-	{ return parseCtrlStatement(tok, "break", CtrlStatementType::break_); }
-
-	CtrlStatementNode* parseContinue(It& tok)
-	{ return parseCtrlStatement(tok, "continue", CtrlStatementType::continue_); }
-
 	AstNode* parseIfExpr(It& tok)
 	{
 		assert(tok->text == "if");
@@ -373,7 +610,7 @@ private:
 		assert(qualifier->qualifierType != QualifierType::none);
 		nextToken(tok);
 
-		qualifier->target= parseExpr(tok, false);
+		qualifier->target= parseExpr(tok, Bp::prefix);
 		return qualifier;
 	}
 
@@ -390,43 +627,33 @@ private:
 		}
 		nextToken(tok);
 
-		op->target= parseExpr(tok, false);
+		op->target= parseExpr(tok, Bp::prefix);
 		return op;
 	}
 
-	BiOpNode* parseBiOp(It& tok, AstNode& lhs)
+	BiOpNode* parseBiOp(It& tok, AstNode& lhs, Bp lbp)
 	{
 		auto op_type= tok->type;
 		nextToken(tok);
 		auto op= newNode<BiOpNode>();
 		op->opType= op_type;
-		op->lhs= &lhs;
-		op->rhs= parseExpr(tok);
+		log("op[");
+		//if (biOpBp(op_type) > lbp) {
+		//	--tok;
+		//	op->lhs= parseRestExpr(&lhs, tok, biOpBp(op_type));
+		//	op->rhs= parseExpr(tok, lbp);
+		//} else {
+			op->lhs= &lhs;
+			op->rhs= parseExpr(tok, tokenLbp(tok->type));
+		//}
+		log("]");
 		return op;
 	}
 
-	CommentNode* parseComment(It& tok)
-	{
-		auto comment= newNode<CommentNode>();
-
-		while (!tok->lastOnLine) {
-			comment->text += tok->text + " ";
-
-			nextToken(tok);
-		}
-		advance(tok);
-
-		return comment;
-	}
-
-	/// greedy: parse whole statement
-	///   e.g. `(stuff + 2) = 5;` -> whole statement is parsed
-	/// non-greedy: parse first full sub-statement
-	///   e.g. `(stuff + 2) = 5;` -> only `(stuff + 2)` is parsed
-	AstNode* parseExpr(It& tok, bool greedy= true)
+	AstNode* parseExpr(It& tok, Bp lbp= Bp::statement)
 	{
 		//log("parseExpr " + tok->text);
-		if (tok->type == TokenType::identifier) {
+		if (tok->type == TokenType::name) {
 			if (tok->text == "let" || tok->text == "var") {
 				return parseVarDecl(tok);
 			} else if (tok->text == "fn") {
@@ -460,14 +687,14 @@ private:
 			} else if (tok->text == "continue") {
 				return parseContinue(tok);
 			} else if (tok->text == "null") {
-				return parseRestExpr(parseNullLiteral(tok), tok, greedy);
+				return parseRestExpr(parseNullLiteral(tok), tok, lbp);
 			} else {
-				return parseRestExpr(parseIdentifier(tok), tok, greedy);
+				return parseRestExpr(parseIdentifier(tok), tok, lbp);
 			}
 		} else if (tok->type == TokenType::openBlock) {
 			return parseBlock(tok);
 		} else if (tok->type == TokenType::number) {
-			return parseRestExpr(parseNumLiteral(tok), tok, greedy);
+			return parseRestExpr(parseNumLiteral(tok), tok, lbp);
 		} else if (tok->type == TokenType::comment) {
 			return parseComment(tok);
 		} else if (qualifierType(tok->type) != QualifierType::none) {
@@ -477,14 +704,14 @@ private:
 		} else if (tok->type == TokenType::openParen) {
 			nextToken(tok);
 			// Parse the full expression inside parens
-			auto expr= parseExpr(tok, true);
+			auto expr= parseExpr(tok);
 			advance(tok); // Hop over `)`
-			return parseRestExpr(expr, tok, greedy);
+			return parseRestExpr(expr, tok, lbp);
 		}
 		parseCheck(false, "Broken expression at " + tok->text);
 	}
 
-	AstNode* parseRestExpr(AstNode* beginning, It& tok, bool greedy)
+	AstNode* parseRestExpr(AstNode* beginning, It& tok, Bp lbp)
 	{
 		assert(beginning);
 
@@ -516,32 +743,30 @@ private:
 		if (	beginning->type == AstNodeType::identifier &&
 				tok->type == TokenType::openParen) {
 			auto call= parseCall(tok, static_cast<IdentifierNode&>(*NONULL(beginning)));
-			return parseRestExpr(call, tok, greedy);
+			return parseRestExpr(call, tok, lbp);
 		}
 
-		if (	tok->type == TokenType::dot || 
-				tok->type == TokenType::rightArrow) {
-			return parseBiOp(tok, *NONULL(beginning));
-		}
-
-		if (greedy) {
-			switch (tok->type) {
-				case TokenType::assign:
-				case TokenType::add:
-				case TokenType::sub:
-				case TokenType::mul:
-				case TokenType::div:
-				case TokenType::equals:
-				case TokenType::nequals:
-				case TokenType::less:
-				case TokenType::greater:
-					return parseBiOp(tok, *NONULL(beginning));
-				default:;
-			}
+		switch (tok->type) {
+			case TokenType::assign:
+			case TokenType::add:
+			case TokenType::sub:
+			case TokenType::mul:
+			case TokenType::div:
+			case TokenType::equals:
+			case TokenType::nequals:
+			case TokenType::less:
+			case TokenType::greater:
+			case TokenType::dot:
+			case TokenType::rightArrow:
+				//if (biOpBp(tok->type) <= lbp)
+				//	return beginning;
+				return parseBiOp(tok, *NONULL(beginning), lbp);
+			default:;
 		}
 		return beginning;
 	}
 };
+#endif 
 
 /// Ties unbound identifiers of the ast tree (making a graph)
 /// Goal is to have zero unbound identifiers after tying
@@ -791,21 +1016,6 @@ AstContext::AstContext()
 	builtinId->boundTo= builtinDecl.get();
 	builtinDecl->identifier= builtinId.get();
 	builtinDecl->valueType= builtinType.get();
-}
-
-bool containsEndStatement(const AstNode& node)
-{
-	if (node.endStatement)
-		return true;
-
-	for (auto&& sub : node.getSubNodes()) {
-		if (!sub)
-			continue;
-		if (containsEndStatement(*sub))
-			return true;
-	}
-
-	return false;
 }
 
 AstContext genAst(const Tokens& tokens)

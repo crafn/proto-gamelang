@@ -17,6 +17,7 @@ struct CCodeGen {
 	void gen(const AstNode& node)
 	{
 		CondGen<AstNodeType::global,        GlobalNode>::eval(*this, node);
+		CondGen<AstNodeType::endStatement,  EndStatementNode>::eval(*this, node);
 		CondGen<AstNodeType::block,         BlockNode>::eval(*this, node);
 		CondGen<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
@@ -26,8 +27,8 @@ struct CCodeGen {
 		CondGen<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
 		CondGen<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
 		CondGen<AstNodeType::call,          CallNode>::eval(*this, node);
-		CondGen<AstNodeType::qualifier,     QualifierNode>::eval(*this, node);
 		CondGen<AstNodeType::label,         LabelNode>::eval(*this, node);
+		CondGen<AstNodeType::comment,       CommentNode>::eval(*this, node);
 	}
 
 private:
@@ -60,8 +61,12 @@ private:
 		/// @todo Rest
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
-			emit(";\n");
 		}
+	}
+
+	void gen(const EndStatementNode& end)
+	{
+		emit(";\n");
 	}
 
 	void gen(const IdentifierNode& type)
@@ -87,14 +92,15 @@ private:
 			for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
 				AstNode& node= *NONULL(*it);
 
-				if (	block.funcType && std::next(it) == block.nodes.end() &&
-						!containsEndStatement(node)) {
-					// Implicit return
+				if (	std::next(it) == block.nodes.end() && 
+						node.type != AstNodeType::endStatement &&
+						block.funcType) {
 					emit("return ");
+					gen(node);
+					emit(";\n");
+				} else {
+					gen(node);
 				}
-
-				gen(node);
-				emit(";\n");
 			}
 		}
 		emit("}");
@@ -165,11 +171,19 @@ private:
 
 	void gen(const UOpNode& op)
 	{
+		auto& target= *NONULL(op.target);
 		switch (op.opType) {
-			case UOpType::addrOf: emit("&"); break;
+			case UOpType::addrOf:
+				emit("&");
+				gen(target);
+			break;
+			case UOpType::reference:
+			case UOpType::pointer:
+				gen(target);
+				emit("*");
+			break;
 			default: assert(0 && "Unknown UOP");
 		}
-		gen(*NONULL(op.target));
 	}
 
 	void gen(const BiOpNode& op)
@@ -227,19 +241,17 @@ private:
 		emit(")");
 	}
 
-	void gen(const QualifierNode& qual)
-	{
-		gen(*NONULL(qual.target));
-		if (	qual.qualifierType == QualifierType::pointer ||
-				qual.qualifierType == QualifierType::reference)
-			emit("*");
-
-	}
-
 	void gen(const LabelNode& label)
 	{
 		gen(*NONULL(label.identifier));
 		emit(":");
+	}
+
+	void gen(const CommentNode& comment)
+	{
+		return;
+		emit("// ");
+		emit(comment.text);
 	}
 
 	template <AstNodeType nodeType, typename T>
@@ -280,11 +292,10 @@ private:
 		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node);
 		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node);
 		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
-		CondMod<AstNodeType::uOp,           UOpNode>::eval(*this, node);
+		CondMod<AstNodeType::uOp,        UOpNode>::eval(*this, node);
 		CondMod<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
 		CondMod<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
 		CondMod<AstNodeType::call,          CallNode>::eval(*this, node);
-		CondMod<AstNodeType::qualifier,     QualifierNode>::eval(*this, node);
 	}
 
 	void mod(GlobalNode& global)
@@ -359,10 +370,10 @@ private:
 			auto self_var= context.newNode<VarDeclNode>();
 			self_var->param= true;
 			self_var->valueType= block.boundTo;
-			self_var->endStatement= true;
 			self_var->identifier= self_id;
 			self_id->boundTo= self_var;
 			ctor_block->nodes.emplace_back(self_var);
+			ctor_block->nodes.emplace_back(context.newNode<EndStatementNode>());
 
 			for (VarDeclNode* decl : struct_type->varDecls) {
 				auto member_param_id= context.newNode<IdentifierNode>();
@@ -384,10 +395,11 @@ private:
 				init_op->opType= BiOpType::assign;
 				init_op->lhs= access_op;
 				init_op->rhs= member_param_id;
-				init_op->endStatement= true;
 
 				// Add initialization to ctor func
 				ctor_block->nodes.emplace_back(init_op);
+				ctor_block->nodes.emplace_back(
+						context.newNode<EndStatementNode>());
 
 				// Remove initialization from struct block
 				decl->value= nullptr;
@@ -396,9 +408,12 @@ private:
 			auto ret= context.newNode<CtrlStatementNode>();
 			ret->statementType= CtrlStatementType::return_;
 			ret->value= self_id;
-			ret->endStatement= true;
 			ctor_block->nodes.emplace_back(ret);
+			ctor_block->nodes.emplace_back(
+					context.newNode<EndStatementNode>());
 
+			globalInsertRequests.emplace_back(
+					context.newNode<EndStatementNode>());
 			globalInsertRequests.emplace_back(ctor_func);
 		}
 	}
@@ -463,11 +478,6 @@ private:
 
 			call.func= ctor_id;
 		}
-	}
-
-	void mod(QualifierNode& qual)
-	{
-		mod(*NONULL(qual.target));
 	}
 
 	template <AstNodeType nodeType, typename T>

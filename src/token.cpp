@@ -25,8 +25,8 @@ bool number(const std::string& str)
 	return true;
 }
 
-/// true if `ch` can be a character in an identifier
-bool identifierChar(char ch)
+/// true if `ch` can be a character in a name
+bool nameChar(char ch)
 {
 	if (ch >= 'a' && ch <= 'z')
 		return true;
@@ -39,12 +39,12 @@ bool identifierChar(char ch)
 	return false;
 }
 
-/// true if str looks like an identifier (like_this236)
-/// @todo 111ab shouldn't be an identifier, or should it?
-bool identifier(const std::string& str)
+/// true if str looks like a name (like_this236)
+/// @todo 111ab shouldn't be an name, or should it?
+bool name(const std::string& str)
 {
 	for (auto&& ch : str) {
-		if (!identifierChar(ch))
+		if (!nameChar(ch))
 			return false;
 	}
 	return true;
@@ -92,6 +92,29 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 	return TokenType::unknown;
 }
 
+TokenType kwTokenType(const std::string& str)
+{
+	if (str == "var")
+		return TokenType::kwVar;
+	if (str == "let")
+		return TokenType::kwLet;
+	if (str == "fn")
+		return TokenType::kwFn;
+	if (str == "struct")
+		return TokenType::kwStruct;
+	if (str == "return")
+		return TokenType::kwReturn;
+	if (str == "goto")
+		return TokenType::kwGoto;
+	if (str == "break")
+		return TokenType::kwBreak;
+	if (str == "continue")
+		return TokenType::kwContinue;
+	if (str == "null")
+		return TokenType::kwNull;
+	return TokenType::unknown;
+}
+
 TokenType tokenType(const std::string& str)
 {
 	if (str.size() == 1) {
@@ -106,8 +129,14 @@ TokenType tokenType(const std::string& str)
 	}
 	if (number(str))
 		return TokenType::number;
-	if (identifier(str))
-		return TokenType::identifier;
+		
+	if (name(str)) {
+		TokenType kw= kwTokenType(str);
+		if (kw != TokenType::unknown)
+			return kw;
+		return TokenType::name;
+	}
+
 
 	return TokenType::unknown;
 }
@@ -147,11 +176,11 @@ Tokens tokenize(const char* filepath)
 			}
 		};
 		while (next < end && tok_begin < end) {
-			if (identifierChar(*next)) {
+			if (nameChar(*next)) {
 				if (	tok_begin + 1 == next &&
 						singleCharTokenType(*tok_begin) != TokenType::unknown) {
 					// Token started as a single-char-token, but next
-					// letter turns out to be the beginning of an identifier
+					// letter turns out to be the beginning of a name
 					commit(tok_begin, next);
 					tok_begin= next;
 				}
@@ -175,6 +204,7 @@ Tokens tokenize(const char* filepath)
 			}
 			++next;
 		}
+		tokens.emplace_back(Token{TokenType::eof, "eof", true});
 	}
 	cleanup:
 	std::fclose(file);
