@@ -64,9 +64,9 @@ enum class Bp : int {
 	sum,
 	prod,
 	block,
+	member,
 	parens,
-	prefix,
-	member
+	prefix
 };
 
 Bp tokenLbp(TokenType t)
@@ -539,6 +539,9 @@ private:
 	/// Can be var decls or labels
 	std::map<std::string, AstNode*> idTargets;
 
+	/// Parent substitutes previously tied node with this
+	AstNode* substitution= nullptr;
+
 	void tie(AstNode& node)
 	{
 		CondTie<AstNodeType::global,        GlobalNode>::eval(*this, node);
@@ -577,8 +580,14 @@ private:
 
 	void tie(BlockNode& block)
 	{
-		for (auto&& node : block.nodes)
+		assert(!substitution);
+		for (auto&& node : block.nodes) {
 			tie(*NONULL(node));
+			if (substitution) {
+				node= substitution;
+				substitution= nullptr;
+			}
+		}
 	}
 
 	void tie(VarDeclNode& var)
@@ -628,8 +637,26 @@ private:
 
 	void tie(BiOpNode& op)
 	{
-		tie(*NONULL(op.lhs));
-		tie(*NONULL(op.rhs));
+		if (	op.opType == BiOpType::dot &&
+				NONULL(op.rhs)->type == AstNodeType::call) {
+			//assert(0 && "METHOD SPOTTED");
+			// "Method" call
+			auto call= static_cast<CallNode*>(op.rhs);
+			auto ref= context.newNode<UOpNode>();
+			ref->opType= UOpType::addrOf;
+			ref->target= op.lhs;
+			call->args.emplace(call->args.begin(), ref);
+			call->namedArgs.emplace(call->namedArgs.begin(), "");
+			call->methodLike= true;
+			
+			tie(*call);
+
+			// Replace op with call
+			substitution= call;
+		} else {
+			tie(*NONULL(op.lhs));
+			tie(*NONULL(op.rhs));
+		}
 	}
 
 	void tie(CtrlStatementNode& ret)

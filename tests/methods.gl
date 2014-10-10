@@ -1,0 +1,15 @@
+let Object := struct { };
+
+let operation = fn (o: ^Object) { };
+let combine = fn (o1: ^Object, o2: ^Object) { };
+
+let main = fn () -> int
+{
+	var obj := Object();
+	var other := Object();
+	obj.operation();
+	obj.combine(&other);
+
+	return 0;
+}
+

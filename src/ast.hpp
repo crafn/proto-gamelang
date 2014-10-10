@@ -215,15 +215,18 @@ struct CtrlStatementNode final : AstNode {
 struct CallNode final : AstNode {
 	IdentifierNode* func= nullptr;
 	std::list<AstNode*> args;
-	/// Extends `args`
-	std::vector<AstNode*> implicitArgs;
-
 	/// namedArgs[i] corresponds to args[i]
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;
 
+	// Set at tying
+
+	/// Extends `args`
+	std::vector<AstNode*> implicitArgs;
 	/// argRouting[arg_i] == index in func decl
 	std::vector<int> argRouting;
+	/// If true, the call has form `first_arg.foo(second_arg)`
+	bool methodLike= false;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
