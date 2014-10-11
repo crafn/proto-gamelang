@@ -41,6 +41,7 @@ enum class AstNodeType {
 	structType,
 	builtinType,
 	numLiteral,
+	stringLiteral,
 	nullLiteral,
 	uOp,
 	biOp,
@@ -88,6 +89,7 @@ struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
 
 	bool loop= false; // Defined with `loop` keyword
+	bool external= false; // FFI
 	AstNode* structType= nullptr;
 	AstNode* funcType= nullptr;
 	AstNode* condition= nullptr;
@@ -157,6 +159,13 @@ struct NumLiteralNode final : AstNode {
 	std::string value;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
+	std::vector<AstNode*> getSubNodes() const override { return {}; }
+};
+
+struct StringLiteralNode final : AstNode {
+	std::string str;
+
+	StringLiteralNode(): AstNode(AstNodeType::stringLiteral) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 

@@ -22,6 +22,7 @@ struct CCodeGen {
 		CondGen<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
 		CondGen<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
 		CondGen<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node);
+		CondGen<AstNodeType::stringLiteral, StringLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::nullLiteral,   NullLiteralNode>::eval(*this, node);
 		CondGen<AstNodeType::uOp,           UOpNode>::eval(*this, node);
 		CondGen<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
@@ -55,7 +56,6 @@ private:
 	{
 		emit("#include <stdbool.h>\n");
 		emit("#include <stdint.h>\n");
-		emit("#include <stdlib.h>\n");
 		emit("typedef int32_t int32;\n");
 		emit("typedef int64_t int64;\n");
 		/// @todo Rest
@@ -88,7 +88,8 @@ private:
 		}
 
 		emit("\n");
-		emit("{\n");
+		if (!block.external)
+			emit("{\n");
 		{ auto&& indent_guard= indentGuard();
 			for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
 				AstNode& node= *NONULL(*it);
@@ -104,40 +105,36 @@ private:
 				}
 			}
 		}
-		emit("}");
+		if (!block.external)
+			emit("}");
 	}
 
 	void gen(const VarDeclNode& var)
 	{
-		if (var.param) {
-			gen(*NONULL(var.valueType));
-			emit(" " + NONULL(var.identifier)->name);
+		auto& value_type= *NONULL(var.valueType);
+		
+		if (value_type.type == AstNodeType::funcType) {
+			assert(var.constant && "@todo Non-constant func vars");
+			genFuncProto(value_type, NONULL(var.identifier)->name);
+			if (var.value)
+				gen(*var.value); // Block
+		} else if (value_type.type == AstNodeType::structType) {
+			assert(var.constant && "Non-constant struct var");
+			const std::string struct_name= NONULL(var.identifier)->name;
+			emit("typedef struct " + struct_name + " " + struct_name + ";\n");
+			emit("struct " + struct_name);
+			gen(*NONULL(var.value)); // Block
 		} else {
-			auto& value_type= *NONULL(var.valueType);
-			
-			if (value_type.type == AstNodeType::funcType) {
-				assert(var.constant && "@todo Non-constant func vars");
-				genFuncProto(value_type, NONULL(var.identifier)->name);
-				if (var.value)
-					gen(*var.value); // Block
-			} else if (value_type.type == AstNodeType::structType) {
-				assert(var.constant && "Non-constant struct var");
-				const std::string struct_name= NONULL(var.identifier)->name;
-				emit("typedef struct " + struct_name + " " + struct_name + ";\n");
-				emit("struct " + struct_name);
-				gen(*NONULL(var.value)); // Block
-			} else {
-				// Ordinary variable
-				gen(value_type);
-				if (var.constant)
-					emit(" const");
+			// Ordinary variable
+			gen(value_type);
+			if (var.constant)
+				emit(" const");
 
-				emit(" " + NONULL(var.identifier)->name);
+			emit(" " + NONULL(var.identifier)->name);
 
-				if (var.value) {
-					emit(" = ");
-					gen(*var.value);
-				}
+			if (var.value && !var.param) {
+				emit(" = ");
+				gen(*var.value);
 			}
 		}
 	}
@@ -163,6 +160,11 @@ private:
 	void gen(const NumLiteralNode& literal)
 	{
 		emit(literal.value);
+	}
+
+	void gen(const StringLiteralNode& literal)
+	{
+		emit("\"" + literal.str + "\"");
 	}
 
 	void gen(const NullLiteralNode& literal)
@@ -376,6 +378,7 @@ private:
 			auto self_var= context.newNode<VarDeclNode>();
 			self_var->param= true;
 			self_var->valueType= block.boundTo;
+			self_var->constant= false;
 			self_var->identifier= self_id;
 			self_id->boundTo= self_var;
 			ctor_block->nodes.emplace_back(self_var);
@@ -388,6 +391,7 @@ private:
 				auto member_param= context.newNode<VarDeclNode>();
 				member_param->param= true;
 				member_param->valueType= decl->valueType;
+				member_param->constant= decl->constant;
 				member_param->identifier= member_param_id;
 				member_param_id->boundTo= member_param;
 				ctor_func_type->params.emplace_back(member_param);

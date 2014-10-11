@@ -9,7 +9,8 @@ test_files= [
         "arithmetic.gl",
         "conditionals.gl",
         "loops.gl",
-        "methods.gl"
+        "methods.gl",
+        "extern.gl"
 ]
 
 if __name__ == "__main__":

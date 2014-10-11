@@ -118,6 +118,8 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwLoop;
 	if (str == "if")
 		return TokenType::kwIf;
+	if (str == "extern")
+		return TokenType::kwExtern;
 	return TokenType::unknown;
 }
 
@@ -172,16 +174,37 @@ Tokens tokenize(const char* filepath)
 		char* next= contents;
 		char* tok_begin= contents;
 		char const* end= contents + contents_size;
-		auto commit= [&tokens, end] (char* b, char* e)
+		auto commit= [&tokens, end] (	char* b,
+										char* e,
+										TokenType t= TokenType::unknown)
 		{
 			if (e > b) {
 				bool last_on_line= e + 1 < end && linebreak(*e);
 				std::string text(b, e);
-				TokenType type= tokenType(text);
-				tokens.emplace_back(Token{type, std::move(text), last_on_line});
+				if (t == TokenType::unknown)
+					t= tokenType(text);
+				tokens.emplace_back(Token{t, std::move(text), last_on_line});
 			}
 		};
+		auto findEndQuote= [&tokens, end] (char* b) -> char*
+		{
+			/// @todo Escaping
+			while (b < end && *b != '"') {
+				++b;
+			}
+			return b;
+		};
 		while (next < end && tok_begin < end) {
+			// String literals
+			if (*tok_begin == '"') {
+				auto str_end= findEndQuote(tok_begin + 1);
+				commit(tok_begin + 1, str_end, TokenType::string);
+				++str_end; // Skip `"`
+				next= str_end;
+				tok_begin= next;
+				continue;
+			}
+
 			if (nameChar(*next)) {
 				if (	tok_begin + 1 == next &&
 						singleCharTokenType(*tok_begin) != TokenType::unknown) {

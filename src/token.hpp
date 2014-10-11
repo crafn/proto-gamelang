@@ -11,6 +11,7 @@ enum class TokenType {
 	eof,
 	name, // single_word_like_this
 	number, // 2538
+	string, // "something"
 	assign, // =
 	declaration, // :
 	endStatement, // ;
@@ -48,6 +49,7 @@ enum class TokenType {
 	kwNull, // null
 	kwLoop, // loop
 	kwIf, // if
+	kwExtern, // extern
 	unknown
 };
 
@@ -94,6 +96,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::kwNull: return "kwNull";
 		case TokenType::kwLoop: return "kwLoop";
 		case TokenType::kwIf: return "kwIf";
+		case TokenType::kwExtern: return "kwExtern";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -142,6 +145,7 @@ static const char* str(TokenType type)
 		case TokenType::kwNull: return "null";
 		case TokenType::kwLoop: return "loop";
 		case TokenType::kwIf: return "if";
+		case TokenType::kwExtern: return "extern";
 		case TokenType::unknown:
 		default: return "???";
 	}

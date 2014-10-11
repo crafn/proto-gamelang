@@ -46,7 +46,8 @@ bool isBuiltinIdentifier(const std::string& name)
 			name == "void" ||
 			name == "bool" ||
 			name == "true" ||
-			name == "false";
+			name == "false" ||
+			name == "char";
 }
 
 /// Binding power
@@ -76,6 +77,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::eof:          return Bp::eof;
 		case TokenType::name:         return Bp::literal;
 		case TokenType::number:       return Bp::literal;
+		case TokenType::string:       return Bp::literal;
 		case TokenType::assign:       return Bp::assignment;
 		case TokenType::declaration:  return Bp::typedecl;
 		case TokenType::endStatement: return Bp::statement;
@@ -110,7 +112,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwLoop:       return Bp::keyword;
 		case TokenType::kwIf:         return Bp::keyword;
 		case TokenType::kwElse:       return Bp::keyword;
-		default: assert(0 && "Missing token binding power");
+		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
 }
 
@@ -402,6 +404,21 @@ private:
 		return block;
 	}
 
+	BlockNode* parseExternal()
+	{
+		match(TokenType::openBlock, "Missing { after extern");
+		auto block= parseBlock();
+		block->external= true;
+		return block;
+	}
+
+	StringLiteralNode* parseStringLiteral(std::string text)
+	{
+		auto literal= newNode<StringLiteralNode>();
+		literal->str= std::move(text);
+		return literal;
+	}
+
 	AstNode* nud(It it)
 	{
 		switch (it->type) {
@@ -409,6 +426,8 @@ private:
 				return parseIdentifier(it->text);
 			case TokenType::number:
 				return parseNumLiteral(it->text);
+			case TokenType::string:
+				return parseStringLiteral(it->text);
 			case TokenType::endStatement:
 				return newNode<EndStatementNode>();
 			case TokenType::openParen:
@@ -446,6 +465,8 @@ private:
 				return parseLoop();
 			case TokenType::kwIf:
 				return parseIf();
+			case TokenType::kwExtern:
+				return parseExternal();
 
 			default:;
 		}
@@ -591,10 +612,6 @@ private:
 		if (identifier.boundTo)
 			return;
 		
-		/// @todo Remove hack
-		if (identifier.name == "malloc" || identifier.name == "rand")
-			return;
-
 		auto it= idTargets.find(identifier.name);
 		parseCheck(it != idTargets.end(), "Unresolved identifier: " + identifier.name);
 		
@@ -629,7 +646,7 @@ private:
 			auto op= static_cast<UOpNode*>(var.valueType);
 			
 			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
-						"Only decltype(call) supported");
+						"Only deduction from call return type supported");
 			auto call= static_cast<CallNode*>(op->target);
 
 			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to

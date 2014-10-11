@@ -1,0 +1,13 @@
+extern {
+	// Declare stuff from cstdlib
+	let rand : fn () -> int;
+	let puts : fn (str : ?char) -> int;
+}
+
+let main := fn () -> int
+{
+	var r : int = rand();
+	if (r == 0) { puts("zero"); }
+	else { puts("something"); }
+	return 0;
+};
