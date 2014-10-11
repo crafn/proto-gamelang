@@ -168,6 +168,7 @@ struct NullLiteralNode final : AstNode {
 enum class UOpType {
 	declType,
 	addrOf,
+	deref,
 	pointer, // type qualifier
 	reference // type qualifier
 };

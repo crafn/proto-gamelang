@@ -329,6 +329,9 @@ private:
 			case TokenType::ref:
 				op_type= UOpType::addrOf;
 			break;
+			case TokenType::mul:
+				op_type= UOpType::deref;
+			break;
 			case TokenType::hat:
 				op_type= UOpType::reference;
 			break;
@@ -413,6 +416,7 @@ private:
 			case TokenType::openBlock:
 				return parseBlock();
 			case TokenType::ref:
+			case TokenType::mul:
 			case TokenType::hat:
 			case TokenType::question:
 				return parseUOp(it->type);
@@ -654,16 +658,16 @@ private:
 	{
 		if (	op.opType == BiOpType::dot &&
 				NONULL(op.rhs)->type == AstNodeType::call) {
-			//assert(0 && "METHOD SPOTTED");
 			// "Method" call
 			auto call= static_cast<CallNode*>(op.rhs);
 			auto ref= context.newNode<UOpNode>();
 			ref->opType= UOpType::addrOf;
 			ref->target= op.lhs;
+			AstNode* arg= op.lhs;
 			call->args.emplace(call->args.begin(), ref);
 			call->namedArgs.emplace(call->namedArgs.begin(), "");
 			call->methodLike= true;
-			
+
 			tie(call);
 
 			// Replace op with call

@@ -5,6 +5,8 @@ let combine = fn (o1: ^Object, o2: ^Object) { };
 let hash = fn (o: ^Object) -> int { 1 };
 let foo = fn (a: int, b: int) { };
 
+let ihash = fn (i : ^int) -> int { *i };
+
 let main = fn () -> int
 {
 	var obj := Object();
@@ -13,6 +15,9 @@ let main = fn () -> int
 	obj.combine(&other);
 	var h : int = obj.hash() + 10;
 	foo(other.hash(), obj.hash());
+	
+	/// @todo Enable when automatic rvalue to lvalue conversion is done
+	//50.ihash();
 
 	return 0;
 }

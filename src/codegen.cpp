@@ -178,6 +178,10 @@ private:
 				emit("&");
 				gen(target);
 			break;
+			case UOpType::deref:
+				emit("*");
+				gen(target);
+			break;
 			case UOpType::reference:
 			case UOpType::pointer:
 				gen(target);
