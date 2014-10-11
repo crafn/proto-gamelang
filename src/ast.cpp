@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include <map>
+#include <type_traits>
 
 #include "ast.hpp"
 #include "nullsafety.hpp"
@@ -529,7 +530,8 @@ struct TieIdentifiers {
 	{
 		/// @todo Scan ast first for declarations and loose-end identifiers
 		///       to allow cyclic references to be resolved
-		tie(context.getRootNode());
+		AstNode* root= &context.getRootNode();
+		tie(root);
 	}
 
 private:
@@ -542,7 +544,24 @@ private:
 	/// Parent substitutes previously tied node with this
 	AstNode* substitution= nullptr;
 
-	void tie(AstNode& node)
+	template <typename T>
+	void tie(T*& node)
+	{
+		assert(node);
+		assert(!substitution);
+
+		tie_choose(*node);
+
+		if (substitution) {
+			assert((substitution->type == node->type || 
+					std::is_same<T, AstNode>::value));
+
+			node= static_cast<T*>(substitution);
+			substitution= nullptr;
+		}
+	}
+
+	void tie_choose(AstNode& node)
 	{
 		CondTie<AstNodeType::global,        GlobalNode>::eval(*this, node);
 		CondTie<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
@@ -556,13 +575,14 @@ private:
 		CondTie<AstNodeType::label,         LabelNode>::eval(*this, node);
 	}
 
-	void tie(GlobalNode& global)
+	void tieSpecific(GlobalNode& global)
 	{
-		for (auto&& node : global.nodes)
-			tie(*NONULL(node));
+		for (auto&& node : global.nodes) {
+			tie(node);
+		}
 	}
 
-	void tie(IdentifierNode& identifier)
+	void tieSpecific(IdentifierNode& identifier)
 	{
 		if (identifier.boundTo)
 			return;
@@ -578,19 +598,14 @@ private:
 		identifier.boundTo= var;
 	}
 
-	void tie(BlockNode& block)
+	void tieSpecific(BlockNode& block)
 	{
-		assert(!substitution);
 		for (auto&& node : block.nodes) {
-			tie(*NONULL(node));
-			if (substitution) {
-				node= substitution;
-				substitution= nullptr;
-			}
+			tie(node);
 		}
 	}
 
-	void tie(VarDeclNode& var)
+	void tieSpecific(VarDeclNode& var)
 	{
 		assert(NONULL(var.identifier)->boundTo &&
 				"Variable identifiers should be bound by definition");
@@ -598,9 +613,9 @@ private:
 		// Loose identifiers can be bound to `var`
 		idTargets[NONULL(var.identifier)->name]= &var;
 
-		tie(*NONULL(var.valueType));
+		tie(var.valueType);
 		if (var.value)
-			tie(*var.value);
+			tie(var.value);
 
 		// Resolve decltype
 		if (	var.valueType->type == AstNodeType::uOp &&
@@ -623,19 +638,19 @@ private:
 		}
 	}
 
-	void tie(FuncTypeNode& func)
+	void tieSpecific(FuncTypeNode& func)
 	{
-		tie(*NONULL(func.returnType));
+		tie(func.returnType);
 		for (auto&& node : func.params)
-			tie(*NONULL(node));
+			tie(node);
 	}
 
-	void tie(UOpNode& op)
+	void tieSpecific(UOpNode& op)
 	{
-		tie(*NONULL(op.target));
+		tie(op.target);
 	}
 
-	void tie(BiOpNode& op)
+	void tieSpecific(BiOpNode& op)
 	{
 		if (	op.opType == BiOpType::dot &&
 				NONULL(op.rhs)->type == AstNodeType::call) {
@@ -649,23 +664,23 @@ private:
 			call->namedArgs.emplace(call->namedArgs.begin(), "");
 			call->methodLike= true;
 			
-			tie(*call);
+			tie(call);
 
 			// Replace op with call
 			substitution= call;
 		} else {
-			tie(*NONULL(op.lhs));
-			tie(*NONULL(op.rhs));
+			tie(op.lhs);
+			tie(op.rhs);
 		}
 	}
 
-	void tie(CtrlStatementNode& ret)
+	void tieSpecific(CtrlStatementNode& ret)
 	{
 		if (ret.value)
-			tie(*ret.value);
+			tie(ret.value);
 	}
 
-	void tie(CallNode& call)
+	void tieSpecific(CallNode& call)
 	{
 		auto&& call_name= NONULL(call.func)->name;
 		auto routeArgsToParams=
@@ -742,9 +757,9 @@ private:
 			return routing;
 		};
 
-		tie(*NONULL(call.func));
+		tie(call.func);
 		for (auto&& arg : call.args) {
-			tie(*NONULL(arg)); 
+			tie(arg); 
 		}
 
 		// Route call arguments to function/struct parameters
@@ -770,16 +785,16 @@ private:
 		assert(call.argRouting.size() == call.args.size() + call.implicitArgs.size());
 	}
 
-	void tie(LabelNode& label)
+	void tieSpecific(LabelNode& label)
 	{
 		idTargets[NONULL(label.identifier)->name]= &label;
-		tie(*NONULL(label.identifier));
+		tie(label.identifier);
 	}
 
 	template <AstNodeType nodeType, typename T>
 	struct CondTie {
 		static void eval(TieIdentifiers& self, AstNode& node)
-		{ if (node.type == nodeType) self.tie(static_cast<T&>(node)); }
+		{ if (node.type == nodeType) self.tieSpecific(static_cast<T&>(node)); }
 	};
 };
 
