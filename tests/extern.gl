@@ -1,13 +1,18 @@
 extern {
 	// Declare stuff from cstdlib
+	let time : fn (v : ?void) -> uint;
+	let srand : fn (seed : uint);
 	let rand : fn () -> int;
 	let puts : fn (str : ?char) -> int;
 }
 
 let main := fn () -> int
 {
-	var r : int = rand();
+	srand(time(null));
+	var r : int = rand() % 2;
+
 	if (r == 0) { puts("zero"); }
-	else { puts("something"); }
+	else { puts("one"); }
+
 	return 0;
 };

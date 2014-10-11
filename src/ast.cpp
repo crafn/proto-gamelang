@@ -41,6 +41,7 @@ void parseCheck(bool expr, const std::string& msg)
 bool isBuiltinIdentifier(const std::string& name)
 {
 	return	name == "int" ||
+			name == "uint" ||
 			name == "int32" ||
 			name == "int64" ||
 			name == "void" ||
@@ -95,6 +96,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::sub:          return Bp::sum;
 		case TokenType::mul:          return Bp::prod;
 		case TokenType::div:          return Bp::prod;
+		case TokenType::mod:          return Bp::prod;
 		case TokenType::dot:          return Bp::member;
 		case TokenType::ref:          return Bp::prefix;
 		case TokenType::hat:          return Bp::prefix;

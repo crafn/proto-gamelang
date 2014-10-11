@@ -72,7 +72,10 @@ private:
 
 	void gen(const IdentifierNode& type)
 	{
-		emit(type.name);
+		if (type.name == "uint")
+			emit("unsigned int");
+		else
+			emit(type.name);
 	}
 
 	void gen(const BlockNode& block)
