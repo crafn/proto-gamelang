@@ -13,13 +13,13 @@ bool whitespace(char ch)
 bool linebreak(char ch)
 { return ch == '\n'; }
 
-bool number(char ch)
-{ return ch >= '0' && ch <= '9'; }
-
+/// @todo Restrict
 bool number(const std::string& str)
 {
 	for (auto&& ch : str) {
-		if (!number(ch))
+		/// @todo Restrict more
+		bool allowed= ch >= '0' && ch <= '9' || ch == '.' || ch == 'x';
+		if (!allowed)
 			return false;
 	}
 	return true;
@@ -32,7 +32,7 @@ bool nameChar(char ch)
 		return true;
 	if (ch >= 'A' && ch <= 'Z')
 		return true;
-	if (number(ch))
+	if (ch >= '0' && ch <= '9')
 		return true;
 	if (ch >= '_')
 		return true;

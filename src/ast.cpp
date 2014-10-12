@@ -48,6 +48,8 @@ bool isBuiltinIdentifier(const std::string& name)
 			name == "bool" ||
 			name == "true" ||
 			name == "false" ||
+			name == "float" ||
+			name == "double" ||
 			name == "char";
 }
 

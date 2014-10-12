@@ -1,6 +1,7 @@
 // Compiling: ./compiler ./tests/glfw2.gl -lglfw -lGL
 
 // GLFW
+let GLFW_WINDOW : int = 0x00010001;
 extern {
 	let glfwInit : fn() -> int;
 	let glfwTerminate : fn();
@@ -8,11 +9,18 @@ extern {
 							d: int, s: int, mode: int) -> ?void;
 	let glfwSetWindowTitle : fn(str: ?char);
 	let glfwSwapBuffers : fn();
+	let glfwSleep : fn(seconds: float);
 }
 
-let GLFW_WINDOW : int = 65537;
+// OpenGL
+let GL_COLOR_BUFFER_BIT : int = 16384;
+extern {
+	let glClearColor : fn(r: float, g: float, b: float, a: float);
+	let glClear : fn(bits : int);
+}
 
-let main := fn () -> int
+
+let main := fn() -> int
 {
 	if (glfwInit() == 0)
 		{ return 1; }
@@ -20,9 +28,11 @@ let main := fn () -> int
 	glfwOpenWindow(400, 300, 0,0,0,0,0,0, GLFW_WINDOW);
 	glfwSetWindowTitle("gamelang");
 
+	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
+		glClear(GL_COLOR_BUFFER_BIT);
 		glfwSwapBuffers();
-		//glfwSleep(0.001);
+		glfwSleep(0.001);
 	}
 
 	glfwTerminate();
