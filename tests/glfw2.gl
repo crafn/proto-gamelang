@@ -5,8 +5,9 @@ extern {
 							d: int, s: int, mode: int) -> ?void;
 	let glfwSetWindowTitle : fn(str: ?char);
 	let glfwSwapBuffers : fn();
-	let GLFW_WINDOW : int = 65537;
 }
+
+let GLFW_WINDOW : int = 65537;
 
 let main := fn () -> int
 {

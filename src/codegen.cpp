@@ -94,8 +94,15 @@ private:
 		if (!block.external)
 			emit("{\n");
 		{ auto&& indent_guard= indentGuard();
+			std::string row_prefix= "";
+			if (block.external)
+				row_prefix= "extern ";
+
 			for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
 				AstNode& node= *NONULL(*it);
+
+				if (node.type != AstNodeType::endStatement)
+					emit(row_prefix);
 
 				if (	std::next(it) == block.nodes.end() && 
 						node.type != AstNodeType::endStatement &&
