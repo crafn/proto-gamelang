@@ -1,0 +1,26 @@
+extern {
+	let glfwInit : fn() -> int;
+	let glfwTerminate : fn();
+	let glfwOpenWindow : fn(w: int, h: int, r: int, g: int, b: int, a: int,
+							d: int, s: int, mode: int) -> ?void;
+	let glfwSetWindowTitle : fn(str: ?char);
+	let glfwSwapBuffers : fn();
+	let GLFW_WINDOW : int = 65537;
+}
+
+let main := fn () -> int
+{
+	if (glfwInit() == 0)
+		{ return 1; }
+
+	glfwOpenWindow(400, 300, 0,0,0,0,0,0, GLFW_WINDOW);
+	glfwSetWindowTitle("gamelang");
+
+	loop {
+		glfwSwapBuffers();
+		//glfwSleep(0.001);
+	}
+
+	glfwTerminate();
+	return 0;
+};

@@ -3,18 +3,28 @@
 import os, sys
 
 if __name__ == "__main__":
+	if len(sys.argv) < 2:
+		print "Too few arguments"
+		sys.exit(1)
+
 	# Compile gamelang to C
 	ret= os.system("./debug/debug " + sys.argv[1])
 	if ret != 0:
 		sys.exit(1)
 
+	gcc_args= ""
+	for a in sys.argv[2:]:
+		gcc_args += " " + a
+	gcc_command= ("gcc" +
+			" -Wall -Wextra -Werror" +
+			" -Wno-unused-parameter" +
+			" -Wno-unused-variable -Wno-unused-but-set-variable" +
+			" temp.c -o out" + gcc_args)
+
+	print gcc_command
+
 	# Compile C to binary
-	ret= os.system(
-		"gcc"
-		" -Wall -Wextra -Werror" +
-		" -Wno-unused-parameter" +
-		" -Wno-unused-variable -Wno-unused-but-set-variable" +
-		" temp.c -o out")
+	ret= os.system(gcc_command)
 
 	if ret == 0:
 		sys.exit(0)
