@@ -57,7 +57,7 @@ bool isBuiltinIdentifier(const std::string& name)
 enum class Bp : int {
 	eof= 0,
 	comment,
-	endBraces,
+	endParens,
 	keyword,
 	literal,
 	name,
@@ -68,8 +68,8 @@ enum class Bp : int {
 	typedecl,
 	sum,
 	prod,
-	block,
 	member,
+	block,
 	parens,
 	prefix
 };
@@ -86,9 +86,13 @@ Bp tokenLbp(TokenType t)
 		case TokenType::endStatement: return Bp::statement;
 		case TokenType::comma:        return Bp::comma;
 		case TokenType::openParen:    return Bp::parens;
-		case TokenType::closeParen:   return Bp::endBraces;
+		case TokenType::closeParen:   return Bp::endParens;
 		case TokenType::openBlock:    return Bp::block;
-		case TokenType::closeBlock:   return Bp::endBraces;
+		case TokenType::closeBlock:   return Bp::endParens;
+		case TokenType::openSquare:   return Bp::parens;
+		case TokenType::closeSquare:  return Bp::endParens;
+		case TokenType::openAngle:    return Bp::parens;
+		case TokenType::closeAngle:   return Bp::endParens;
 		case TokenType::rightArrow:   return Bp::member;
 		case TokenType::equals:       return Bp::comp;
 		case TokenType::nequals:      return Bp::comp;
@@ -117,6 +121,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwIf:         return Bp::keyword;
 		case TokenType::kwElse:       return Bp::keyword;
 		case TokenType::kwExtern:     return Bp::keyword;
+		case TokenType::kwTpl:        return Bp::keyword;
 		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
 }
@@ -167,6 +172,8 @@ private:
 	{
 		if (thing.type == AstNodeType::block) {
 			const BlockNode& block= static_cast<const BlockNode&>(thing);
+			if (block.tplType)
+				return block.tplType;
 			if (block.structType)
 				return block.structType;
 			if (block.funcType)
@@ -199,13 +206,6 @@ private:
 		return type;
 	}
 
-	AstNode* parseParens()
-	{
-		auto expr= parseExpr();
-		match(TokenType::closeParen, "Missing )");
-		return expr;
-	}
-	
 	/// Parses `name : Type = defaultValue` part of the decl
 	VarDeclNode* parseVarDecl(bool constant)
 	{
@@ -289,6 +289,13 @@ private:
 		return newNode<StructTypeNode>();
 	}
 
+	AstNode* parseParens()
+	{
+		auto expr= parseExpr();
+		match(TokenType::closeParen, "Missing )");
+		return expr;
+	}
+
 	/// `{ code(); }`
 	BlockNode* parseBlock()
 	{
@@ -349,7 +356,7 @@ private:
 	}
 
 	/// `foo(1, "asd")`
-	CallNode* parseCall(AstNode& func)
+	CallNode* parseCall(AstNode& func, TokenType closing= TokenType::closeParen)
 	{
 		/// @todo Support for calling arbitrary expr
 		parseCheck(	func.type == AstNodeType::identifier,
@@ -357,8 +364,8 @@ private:
 		auto identifier= static_cast<IdentifierNode*>(&func);
 
 		auto call= newNode<CallNode>();
-		call->func= identifier;
-		while (token->type != TokenType::closeParen) {
+		call->identifier= identifier;
+		while (token->type != closing) {
 			if (token->type == TokenType::dot) { 
 				// Named argument
 				advance();
@@ -378,11 +385,11 @@ private:
 			if (token->type == TokenType::comma)
 				advance();
 		}
-		match(TokenType::closeParen, "Missing )");
+		match(closing, "Missing )");
 		assert(call->args.size() == call->namedArgs.size());
 		return call;
 	}
-	
+
 	BlockNode* parseLoop()
 	{
 		match(TokenType::openBlock, "Missing { after loop");
@@ -416,6 +423,28 @@ private:
 		auto literal= newNode<StringLiteralNode>();
 		literal->str= std::move(text);
 		return literal;
+	}
+
+	TplTypeNode* parseTemplateType()
+	{
+		log("parseTemplateType");
+		match(TokenType::openSquare);
+		auto tpl_type= newNode<TplTypeNode>();
+		while (token->type != TokenType::closeSquare) {
+			tpl_type->params.emplace_back(parseExpr(Bp::comma));
+			if (token->type == TokenType::comma);
+				advance();
+		}
+		match(TokenType::closeSquare);
+		return tpl_type;
+	}
+	
+	/// `left[..]`
+	AstNode* parseSquare(AstNode& left)
+	{
+		auto call= parseCall(left, TokenType::closeSquare);
+		call->tplCall= true;
+		return call;
 	}
 
 	AstNode* nud(It it)
@@ -466,10 +495,10 @@ private:
 				return parseIf();
 			case TokenType::kwExtern:
 				return parseExternal();
-
+			case TokenType::kwTpl:
+				return parseTemplateType();
 			default:;
 		}
-
 		parseCheck(false, "Invalid nud token: " + it->text);
 	}
 
@@ -481,6 +510,18 @@ private:
 			auto fn_type= static_cast<FuncTypeNode*>(&left);
 			auto block= parseBlock();
 			block->funcType= fn_type;
+			return block;
+		}
+		if (	left.type == AstNodeType::tplType &&
+				it->type != TokenType::endStatement) {
+			parseCheck(	it->type == TokenType::rightArrow,
+						"TPL must be followed by ->");
+			auto tpl_type= static_cast<TplTypeNode*>(&left);
+			auto yield= parseExpr();
+			parseCheck(	yield->type == AstNodeType::block,
+						"TPL must yield a block");
+			auto block= static_cast<BlockNode*>(yield);
+			block->tplType= tpl_type;
 			return block;
 		}
 		if (	left.type == AstNodeType::structType &&
@@ -498,8 +539,7 @@ private:
 		}
 		// `this_is_label:`
 		if (	left.type == AstNodeType::identifier &&
-				it->type == TokenType::declaration)
-		{
+				it->type == TokenType::declaration) {
 			auto label= newNode<LabelNode>();
 			label->identifier= static_cast<IdentifierNode*>(&left);
 			label->identifier->boundTo= label;
@@ -511,6 +551,8 @@ private:
 				return &left;
 			case TokenType::openParen:
 				return parseCall(left);
+			case TokenType::openSquare:
+				return parseSquare(left);
 			default: // Assuming BiOp
 				{
 					auto op_type= it->type;
@@ -574,7 +616,7 @@ private:
 		assert(node);
 		assert(!substitution);
 
-		tie_choose(*node);
+		chooseTie(*node);
 
 		if (substitution) {
 			assert((substitution->type == node->type || 
@@ -585,7 +627,7 @@ private:
 		}
 	}
 
-	void tie_choose(AstNode& node)
+	void chooseTie(AstNode& node)
 	{
 		CondTie<AstNodeType::global,        GlobalNode>::eval(*this, node);
 		CondTie<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
@@ -597,6 +639,7 @@ private:
 		CondTie<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
 		CondTie<AstNodeType::call,          CallNode>::eval(*this, node);
 		CondTie<AstNodeType::label,         LabelNode>::eval(*this, node);
+		CondTie<AstNodeType::tplType,       TplTypeNode>::eval(*this, node);
 	}
 
 	void tieSpecific(GlobalNode& global)
@@ -650,8 +693,8 @@ private:
 
 			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
 			// the declaration `let Chicken := struct {..}`
-			assert(NONULL(call->func->boundTo)->type == AstNodeType::varDecl);
-			auto ret_type_decl= static_cast<VarDeclNode*>(call->func->boundTo);
+			assert(NONULL(call->identifier->boundTo)->type == AstNodeType::varDecl);
+			auto ret_type_decl= static_cast<VarDeclNode*>(call->identifier->boundTo);
 
 			// Resolve valueType to the identifier of the struct type
 			var.valueType= ret_type_decl->identifier;
@@ -660,9 +703,9 @@ private:
 
 	void tieSpecific(FuncTypeNode& func)
 	{
-		tie(func.returnType);
 		for (auto&& node : func.params)
 			tie(node);
+		tie(func.returnType);
 	}
 
 	void tieSpecific(UOpNode& op)
@@ -702,7 +745,7 @@ private:
 
 	void tieSpecific(CallNode& call)
 	{
-		auto&& call_name= NONULL(call.func)->name;
+		auto&& call_name= NONULL(call.identifier)->name;
 		auto routeArgsToParams=
 			[&call_name] (	std::vector<AstNode*>& implicit_args, // output
 							std::vector<std::string>& names,
@@ -777,13 +820,13 @@ private:
 			return routing;
 		};
 
-		tie(call.func);
+		tie(call.identifier);
 		for (auto&& arg : call.args) {
 			tie(arg); 
 		}
 
 		// Route call arguments to function/struct parameters
-		auto func_id_bound= NONULL(call.func)->boundTo;
+		auto func_id_bound= NONULL(call.identifier)->boundTo;
 		assert(NONULL(func_id_bound)->type == AstNodeType::varDecl);
 		auto var_decl= static_cast<VarDeclNode*>(func_id_bound);
 		if (NONULL(var_decl)->valueType->type == AstNodeType::funcType) {
@@ -809,6 +852,12 @@ private:
 	{
 		idTargets[NONULL(label.identifier)->name]= &label;
 		tie(label.identifier);
+	}
+
+	void tieSpecific(TplTypeNode& tpe)
+	{
+		for (auto&& node : tpe.params)
+			tie(node);
 	}
 
 	template <AstNodeType nodeType, typename T>

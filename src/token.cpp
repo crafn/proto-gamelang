@@ -89,6 +89,10 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 		return TokenType::nequals;
 	if (ch1 == '/' && ch2 == '/')
 		return TokenType::comment;
+	if (ch1 == '<' && ch2 == '.')
+		return TokenType::openAngle;
+	if (ch1 == '.' && ch2 == '>')
+		return TokenType::closeAngle;
 
 	return TokenType::unknown;
 }
@@ -121,6 +125,8 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwIf;
 	if (str == "extern")
 		return TokenType::kwExtern;
+	if (str == "tpl")
+		return TokenType::kwTpl;
 	return TokenType::unknown;
 }
 

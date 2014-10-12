@@ -22,6 +22,8 @@ enum class TokenType {
 	closeBlock, // }
 	openSquare, // [
 	closeSquare, // ]
+	openAngle, // <.
+	closeAngle, // .>
 	rightArrow, // ->
 	equals, // ==
 	nequals, // !=
@@ -51,6 +53,7 @@ enum class TokenType {
 	kwLoop, // loop
 	kwIf, // if
 	kwExtern, // extern
+	kwTpl, // tpl
 	unknown
 };
 
@@ -70,6 +73,8 @@ static const char* enumStr(TokenType type)
 		case TokenType::closeBlock: return "closeBlock";
 		case TokenType::openSquare: return "openSquare";
 		case TokenType::closeSquare: return "closeSquare";
+		case TokenType::openAngle: return "openAngle";
+		case TokenType::closeAngle: return "closeAngle";
 		case TokenType::rightArrow: return "rightArrow";
 		case TokenType::equals: return "equals";
 		case TokenType::nequals: return "nequals";
@@ -99,6 +104,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::kwLoop: return "kwLoop";
 		case TokenType::kwIf: return "kwIf";
 		case TokenType::kwExtern: return "kwExtern";
+		case TokenType::kwTpl: return "kwTpl";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -120,6 +126,8 @@ static const char* str(TokenType type)
 		case TokenType::closeBlock: return "}";
 		case TokenType::openSquare: return "[";
 		case TokenType::closeSquare: return "]";
+		case TokenType::openAngle: return "<.";
+		case TokenType::closeAngle: return ".>";
 		case TokenType::rightArrow: return "->";
 		case TokenType::equals: return "==";
 		case TokenType::nequals: return "!=";
@@ -149,6 +157,7 @@ static const char* str(TokenType type)
 		case TokenType::kwLoop: return "loop";
 		case TokenType::kwIf: return "if";
 		case TokenType::kwExtern: return "extern";
+		case TokenType::kwTpl: return "tpl";
 		case TokenType::unknown:
 		default: return "???";
 	}

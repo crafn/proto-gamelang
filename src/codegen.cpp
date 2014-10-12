@@ -134,6 +134,8 @@ private:
 			emit("typedef struct " + struct_name + " " + struct_name + ";\n");
 			emit("struct " + struct_name);
 			gen(*NONULL(var.value)); // Block
+		} else if (value_type.type == AstNodeType::tplType) {
+			assert(0 && "Trying to generate C for template type");
 		} else {
 			// Ordinary variable
 			gen(value_type);
@@ -247,7 +249,7 @@ private:
 
 	void gen(const CallNode& call)
 	{
-		gen(*NONULL(call.func));
+		gen(*NONULL(call.identifier));
 
 		emit("(");
 		for (auto it= call.args.begin(); it != call.args.end(); ++it) {
@@ -284,7 +286,10 @@ struct AstCModifier {
 	AstCModifier(AstContext& ctx): context(ctx) {}
 
 	void mod()
-	{ mod(context.getRootNode()); }
+	{
+		AstNode* root= &context.getRootNode();
+		mod(root);
+	}
 
 private:
 	enum class ScopeType {
@@ -299,12 +304,20 @@ private:
 	std::stack<ScopeType> scopeStack;
 	std::vector<AstNode*> globalInsertRequests;
 	std::vector<AstNode*> localInsertRequests;
+	bool removeThisRequest= false;
 
 	std::string clashPrevention() const { return "_cR_"; }
 	std::string ctorName(std::string type_name) const
 	{ return clashPrevention() + "ctor_" + type_name; }
 
-	void mod(AstNode& node)
+	template <typename T>
+	void mod(T*& node)
+	{
+		assert(node);
+		chooseMod(*node);
+	}
+
+	void chooseMod(AstNode& node)
 	{
 		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node);
 		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node);
@@ -315,11 +328,17 @@ private:
 		CondMod<AstNodeType::call,          CallNode>::eval(*this, node);
 	}
 
-	void mod(GlobalNode& global)
+	void specificMod(GlobalNode& global)
 	{
 		scopeStack.push(ScopeType::global);
 		for (auto it= global.nodes.begin(); it != global.nodes.end();) {
-			mod(*NONULL(*it));
+			mod(*it);
+
+			if (removeThisRequest) {
+				it= global.nodes.erase(it);
+				removeThisRequest= false;
+				continue;
+			}
 
 			if (!globalInsertRequests.empty()) {
 				for (auto&& req : globalInsertRequests) {
@@ -334,8 +353,14 @@ private:
 		scopeStack.pop();
 	}
 
-	void mod(BlockNode& block)
+	void specificMod(BlockNode& block)
 	{
+		if (block.tplType) {
+			// Concrete types from templates are created on demand
+			removeThisRequest= true;
+			return;
+		}
+
 		ScopeType scope_type= ScopeType::plainScope;
 		if (block.structType)
 			scope_type= ScopeType::structure;
@@ -346,8 +371,13 @@ private:
 		scopeStack.push(scope_type);
 
 		for (auto it= block.nodes.begin(); it != block.nodes.end();) {
-			AstNode& node= *NONULL(*it);
-			mod(node);
+			mod(*it);
+
+			if (removeThisRequest) {
+				it= block.nodes.erase(it);
+				removeThisRequest= false;
+				continue;
+			}
 
 			if (!localInsertRequests.empty()) {
 				for (auto&& req : localInsertRequests) {
@@ -437,31 +467,31 @@ private:
 		}
 	}
 
-	void mod(VarDeclNode& var)
+	void specificMod(VarDeclNode& var)
 	{
 		assert(var.valueType);
 		if (var.value)
-			mod(*var.value);
+			mod(var.value);
 	}
 
-	void mod(UOpNode& op)
+	void specificMod(UOpNode& op)
 	{
-		mod(*NONULL(op.target));
+		mod(op.target);
 	}
 
-	void mod(BiOpNode& op)
+	void specificMod(BiOpNode& op)
 	{
-		mod(*NONULL(op.lhs));
-		mod(*NONULL(op.rhs));
+		mod(op.lhs);
+		mod(op.rhs);
 	}
 	
-	void mod(CtrlStatementNode& ctrl)
+	void specificMod(CtrlStatementNode& ctrl)
 	{
 		if (ctrl.value)
-			mod(*ctrl.value);
+			mod(ctrl.value);
 	}
 
-	void mod(CallNode& call)
+	void specificMod(CallNode& call)
 	{
 		// Resolve argument routing
 		std::vector<AstNode*> new_args;
@@ -485,24 +515,24 @@ private:
 		call.namedArgs.clear(); // No named args in C
 
 		for (auto&& arg : call.args)
-			mod(*NONULL(arg));
+			mod(arg);
 
 		// Handle ctor calls
-		assert(NONULL(NONULL(call.func)->boundTo)->type == AstNodeType::varDecl);
-		auto func_decl= static_cast<VarDeclNode*>(call.func->boundTo);
+		assert(NONULL(NONULL(call.identifier)->boundTo)->type == AstNodeType::varDecl);
+		auto func_decl= static_cast<VarDeclNode*>(call.identifier->boundTo);
 		if (NONULL(func_decl->valueType)->type == AstNodeType::structType) {
 			// Swap `Type(..)` to compiler-generated ctor call
 			auto ctor_id= context.newNode<IdentifierNode>();
 			ctor_id->name= ctorName(NONULL(func_decl->identifier)->name);
 
-			call.func= ctor_id;
+			call.identifier= ctor_id;
 		}
 	}
 
 	template <AstNodeType nodeType, typename T>
 	struct CondMod {
 		static void eval(AstCModifier& self, AstNode& node)
-		{ if (node.type == nodeType) self.mod(static_cast<T&>(node)); }
+		{ if (node.type == nodeType) self.specificMod(static_cast<T&>(node)); }
 	};
 };
 

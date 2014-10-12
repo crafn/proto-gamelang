@@ -1,0 +1,10 @@
+let Container := tpl[T: struct] -> struct
+{
+	var begin : ?T = null;
+};
+
+let main := fn() -> int
+{
+	//Container[]();
+	return 0;
+};

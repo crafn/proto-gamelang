@@ -10,7 +10,8 @@ test_files= [
         "conditionals.gl",
         "loops.gl",
         "methods.gl",
-        "extern.gl"
+        "extern.gl",
+        "templates.gl"
 ]
 
 if __name__ == "__main__":

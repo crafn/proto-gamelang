@@ -19,7 +19,6 @@ extern {
 	let glClear : fn(bits : int);
 }
 
-
 let main := fn() -> int
 {
 	if (glfwInit() == 0)

@@ -49,7 +49,8 @@ enum class AstNodeType {
 	call,
 	qualifier,
 	label,
-	comment
+	comment,
+	tplType
 };
 
 struct AstNode {
@@ -84,14 +85,16 @@ struct IdentifierNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+struct TplTypeNode;
 /// `{ ... }`
 struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
 
-	bool loop= false; // Defined with `loop` keyword
-	bool external= false; // FFI
+	bool loop= false;
+	bool external= false; /// FFI
 	AstNode* structType= nullptr;
 	AstNode* funcType= nullptr;
+	TplTypeNode* tplType= nullptr; /// Used if block is a template
 	AstNode* condition= nullptr;
 	std::list<AstNode*> nodes;
 
@@ -223,11 +226,12 @@ struct CtrlStatementNode final : AstNode {
 
 /// `foo(a, b, c)`
 struct CallNode final : AstNode {
-	IdentifierNode* func= nullptr;
+	IdentifierNode* identifier= nullptr;
 	std::list<AstNode*> args;
 	/// namedArgs[i] corresponds to args[i]
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;
+	bool tplCall= false; /// true if call has form `foo[..]`
 
 	// Set at tying
 
@@ -240,7 +244,7 @@ struct CallNode final : AstNode {
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= listToVec(args); ret.push_back(func); return ret; }
+	{ auto ret= listToVec(args); ret.push_back(identifier); return ret; }
 };
 
 struct LabelNode final : AstNode {
@@ -253,6 +257,15 @@ struct CommentNode final : AstNode {
 	std::string	text;
 	CommentNode(): AstNode(AstNodeType::comment) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
+};
+
+/// `tpl [params]`
+struct TplTypeNode final : AstNode {
+	std::vector<AstNode*> params;
+
+	TplTypeNode(): AstNode(AstNodeType::tplType) {}
+	std::vector<AstNode*> getSubNodes() const override
+	{ return params; }
 };
 
 struct AstContext {
