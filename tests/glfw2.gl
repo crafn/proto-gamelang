@@ -1,3 +1,6 @@
+// Compiling: ./compiler ./tests/glfw2.gl -lglfw -lGL
+
+// GLFW
 extern {
 	let glfwInit : fn() -> int;
 	let glfwTerminate : fn();

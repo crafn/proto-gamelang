@@ -190,12 +190,29 @@ Tokens tokenize(const char* filepath)
 		auto findEndQuote= [&tokens, end] (char* b) -> char*
 		{
 			/// @todo Escaping
-			while (b < end && *b != '"') {
+			while (b < end && *b != '"')
 				++b;
-			}
 			return b;
 		};
+		auto findLineEnd= [&tokens, end] (char* b) -> char*
+		{
+			while (b < end && !linebreak(*b))
+				++b;
+			return b;
+		};
+
 		while (next < end && tok_begin < end) {
+			// Comments
+			if (	tok_begin + 1 < end &&
+					doubleCharTokenType(tok_begin[0], tok_begin[1]) ==
+						TokenType::comment) {
+				auto comment_end= findLineEnd(tok_begin);
+				commit(tok_begin + 2, comment_end, TokenType::comment);
+				++comment_end; // Skip linebreak
+				next= comment_end;
+				tok_begin= comment_end;
+			}
+
 			// String literals
 			if (*tok_begin == '"') {
 				auto str_end= findEndQuote(tok_begin + 1);

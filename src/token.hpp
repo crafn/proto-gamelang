@@ -37,7 +37,7 @@ enum class TokenType {
 	hat, // ^
 	question, // ?
 	squote, // '
-	comment, // //
+	comment, // // this is comment
 	kwVar, // var
 	kwLet, // let
 	kwFn, // fn

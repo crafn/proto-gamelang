@@ -101,7 +101,7 @@ private:
 			for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
 				AstNode& node= *NONULL(*it);
 
-				if (node.type != AstNodeType::endStatement)
+				if (node.type == AstNodeType::varDecl)
 					emit(row_prefix);
 
 				if (	std::next(it) == block.nodes.end() && 
@@ -268,8 +268,7 @@ private:
 	void gen(const CommentNode& comment)
 	{
 		return;
-		emit("// ");
-		emit(comment.text);
+		emit("//" + comment.text + "\n");
 	}
 
 	template <AstNodeType nodeType, typename T>

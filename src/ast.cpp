@@ -114,6 +114,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwLoop:       return Bp::keyword;
 		case TokenType::kwIf:         return Bp::keyword;
 		case TokenType::kwElse:       return Bp::keyword;
+		case TokenType::kwExtern:     return Bp::keyword;
 		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
 }
@@ -312,16 +313,10 @@ private:
 		return ret;
 	}
 
-	CommentNode* parseComment()
+	CommentNode* parseComment(std::string text)
 	{
-		/// @todo Detect empty comment
 		auto comment= newNode<CommentNode>();
-		while (!token->lastOnLine) {
-			comment->text += token->text + " ";
-			advance();
-		}
-		comment->text += token->text + " ";
-		advance();
+		comment->text= std::move(text);
 		return comment;
 	}
 
@@ -442,7 +437,7 @@ private:
 			case TokenType::question:
 				return parseUOp(it->type);
 			case TokenType::comment:
-				return parseComment();
+				return parseComment(it->text);
 			case TokenType::kwVar:
 				return parseVarDecl(false);
 			case TokenType::kwLet:
