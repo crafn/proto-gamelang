@@ -47,7 +47,6 @@ enum class AstNodeType {
 	biOp,
 	ctrlStatement,
 	call,
-	qualifier,
 	label,
 	comment,
 	tplType
@@ -110,6 +109,7 @@ struct BlockNode final : AstNode {
 
 /// `let x : int = 15`
 struct VarDeclNode final : AstNode {
+	/// @todo Remove
 	bool constant= true;
 	IdentifierNode* identifier= nullptr;
 	AstNode* valueType= nullptr;

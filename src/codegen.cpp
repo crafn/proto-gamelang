@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "metaprocessor.hpp"
 #include "nullsafety.hpp"
 
 #include <map>
@@ -546,13 +547,13 @@ private:
 
 std::string genC(AstContext& ctx)
 {
-	assert(ctx.hasRootNode());
+	auto no_meta_ctx= runMetaprograms(ctx);
 
-	AstCModifier modifier{ctx};
+	AstCModifier modifier{no_meta_ctx};
 	modifier.mod();
 
 	CCodeGen gen;
-	gen.gen(ctx.getRootNode());
+	gen.gen(no_meta_ctx.getRootNode());
 
 	return gen.code;
 }
