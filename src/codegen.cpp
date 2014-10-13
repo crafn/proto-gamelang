@@ -1,7 +1,8 @@
-#include <stack>
-
 #include "codegen.hpp"
 #include "nullsafety.hpp"
+
+#include <map>
+#include <stack>
 
 // Debug
 #include <iostream>
@@ -249,7 +250,7 @@ private:
 
 	void gen(const CallNode& call)
 	{
-		gen(*NONULL(call.identifier));
+		gen(*NONULL(call.func));
 
 		emit("(");
 		for (auto it= call.args.begin(); it != call.args.end(); ++it) {
@@ -302,6 +303,7 @@ private:
 
 	AstContext& context;
 	std::stack<ScopeType> scopeStack;
+	std::map<AstNode*, std::string> mangledNames;
 	std::vector<AstNode*> globalInsertRequests;
 	std::vector<AstNode*> localInsertRequests;
 	bool removeThisRequest= false;
@@ -470,8 +472,11 @@ private:
 	void specificMod(VarDeclNode& var)
 	{
 		assert(var.valueType);
-		if (var.value)
+		if (var.value) {
+			mangledNames[var.value]= NONULL(var.identifier)->name;
 			mod(var.value);
+		}
+
 	}
 
 	void specificMod(UOpNode& op)
@@ -518,14 +523,15 @@ private:
 			mod(arg);
 
 		// Handle ctor calls
-		assert(NONULL(NONULL(call.identifier)->boundTo)->type == AstNodeType::varDecl);
-		auto func_decl= static_cast<VarDeclNode*>(call.identifier->boundTo);
-		if (NONULL(func_decl->valueType)->type == AstNodeType::structType) {
-			// Swap `Type(..)` to compiler-generated ctor call
-			auto ctor_id= context.newNode<IdentifierNode>();
-			ctor_id->name= ctorName(NONULL(func_decl->identifier)->name);
-
-			call.identifier= ctor_id;
+		auto& func= traceValue(*NONULL(call.func));
+		if (func.type == AstNodeType::block) {
+			auto& func_block= static_cast<BlockNode&>(func);
+			if (func_block.structType) {
+				// Swap `Type(..)` to compiler-generated ctor call
+				auto ctor_id= context.newNode<IdentifierNode>();
+				ctor_id->name= ctorName(mangledNames[&func_block]);
+				call.func= ctor_id;
+			}
 		}
 	}
 

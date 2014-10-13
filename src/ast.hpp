@@ -226,7 +226,7 @@ struct CtrlStatementNode final : AstNode {
 
 /// `foo(a, b, c)`
 struct CallNode final : AstNode {
-	IdentifierNode* identifier= nullptr;
+	AstNode* func= nullptr;
 	std::list<AstNode*> args;
 	/// namedArgs[i] corresponds to args[i]
 	/// namedArgs[i].empty() == ordinary argument
@@ -244,7 +244,7 @@ struct CallNode final : AstNode {
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ auto ret= listToVec(args); ret.push_back(identifier); return ret; }
+	{ auto ret= listToVec(args); ret.push_back(func); return ret; }
 };
 
 struct LabelNode final : AstNode {
@@ -261,11 +261,16 @@ struct CommentNode final : AstNode {
 
 /// `tpl [params]`
 struct TplTypeNode final : AstNode {
-	std::vector<AstNode*> params;
+	std::vector<VarDeclNode*> params;
 
 	TplTypeNode(): AstNode(AstNodeType::tplType) {}
 	std::vector<AstNode*> getSubNodes() const override
-	{ return params; }
+	{
+		std::vector<AstNode*> ret;
+		for (auto* p : params)
+			ret.push_back(p);
+		return ret;
+	}
 };
 
 struct AstContext {
@@ -297,6 +302,16 @@ private:
 	std::unique_ptr<IdentifierNode> builtinId;
 	std::unique_ptr<VarDeclNode> builtinDecl;
 };
+
+/// e.g. identifier -> func block
+///      vector -> tpl block
+///      identifier -> extern identifier
+AstNode& traceValue(AstNode& expr);
+
+/// e.g. identifier -> func type
+///      vector -> tpl type
+///      identifier -> struct type
+AstNode& traceType(AstNode& expr);
 
 AstContext genAst(const Tokens& tokens);
 

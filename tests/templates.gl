@@ -5,6 +5,6 @@ let Container := tpl[T: struct] -> struct
 
 let main := fn() -> int
 {
-	//Container[]();
+	//Container[int]();
 	return 0;
 };

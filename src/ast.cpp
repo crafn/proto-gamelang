@@ -9,7 +9,6 @@
 
 namespace gamelang
 {
-
 namespace
 {
 
@@ -359,12 +358,12 @@ private:
 	CallNode* parseCall(AstNode& func, TokenType closing= TokenType::closeParen)
 	{
 		/// @todo Support for calling arbitrary expr
-		parseCheck(	func.type == AstNodeType::identifier,
-					"Only simple func calls supported");
-		auto identifier= static_cast<IdentifierNode*>(&func);
+		//parseCheck(	func.type == AstNodeType::identifier,
+		//			"Only simple func calls supported");
+		//auto identifier= static_cast<IdentifierNode*>(&func);
 
 		auto call= newNode<CallNode>();
-		call->identifier= identifier;
+		call->func= &func;
 		while (token->type != closing) {
 			if (token->type == TokenType::dot) { 
 				// Named argument
@@ -431,9 +430,14 @@ private:
 		match(TokenType::openSquare);
 		auto tpl_type= newNode<TplTypeNode>();
 		while (token->type != TokenType::closeSquare) {
-			tpl_type->params.emplace_back(parseExpr(Bp::comma));
-			if (token->type == TokenType::comma);
+			if (token->type == TokenType::comma)
 				advance();
+
+			auto param= parseVarDecl(true);
+			param->param= true;
+			tpl_type->params.push_back(param);
+
+			log(",");
 		}
 		match(TokenType::closeSquare);
 		return tpl_type;
@@ -693,8 +697,10 @@ private:
 
 			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
 			// the declaration `let Chicken := struct {..}`
-			assert(NONULL(call->identifier->boundTo)->type == AstNodeType::varDecl);
-			auto ret_type_decl= static_cast<VarDeclNode*>(call->identifier->boundTo);
+			assert(NONULL(call->func)->type == AstNodeType::identifier);
+			auto func_id= static_cast<IdentifierNode*>(call->func);
+			assert(NONULL(func_id->boundTo)->type == AstNodeType::varDecl);
+			auto ret_type_decl= static_cast<VarDeclNode*>(func_id->boundTo);
 
 			// Resolve valueType to the identifier of the struct type
 			var.valueType= ret_type_decl->identifier;
@@ -745,7 +751,7 @@ private:
 
 	void tieSpecific(CallNode& call)
 	{
-		auto&& call_name= NONULL(call.identifier)->name;
+		std::string call_name= "@todo str(call)";
 		auto routeArgsToParams=
 			[&call_name] (	std::vector<AstNode*>& implicit_args, // output
 							std::vector<std::string>& names,
@@ -820,29 +826,34 @@ private:
 			return routing;
 		};
 
-		tie(call.identifier);
+		tie(call.func);
 		for (auto&& arg : call.args) {
 			tie(arg); 
 		}
 
 		// Route call arguments to function/struct parameters
-		auto func_id_bound= NONULL(call.identifier)->boundTo;
-		assert(NONULL(func_id_bound)->type == AstNodeType::varDecl);
-		auto var_decl= static_cast<VarDeclNode*>(func_id_bound);
-		if (NONULL(var_decl)->valueType->type == AstNodeType::funcType) {
+		auto& traced= traceType(*NONULL(call.func));
+		if (traced.type == AstNodeType::funcType) {
 			// Ordinary function call
-			auto func_type= static_cast<FuncTypeNode*>(var_decl->valueType);
+			auto& func_type= static_cast<FuncTypeNode&>(traced);
 			call.argRouting=
 				routeArgsToParams(	call.implicitArgs,
 									call.namedArgs,
-									listToVec(func_type->params));
-		} else if (NONULL(var_decl)->valueType->type == AstNodeType::structType) {
+									listToVec(func_type.params));
+		} else if (traced.type == AstNodeType::structType) {
 			// Constructor call
-			auto struct_type= static_cast<StructTypeNode*>(var_decl->valueType);
+			auto& struct_type= static_cast<StructTypeNode&>(traced);
 			call.argRouting=
 				routeArgsToParams(	call.implicitArgs,
 									call.namedArgs,
-									struct_type->varDecls);
+									struct_type.varDecls);
+		} else if (traced.type == AstNodeType::tplType) {
+			// Template instantiation
+			auto& tpl_type= static_cast<TplTypeNode&>(traced);
+			call.argRouting=
+				routeArgsToParams(	call.implicitArgs,
+									call.namedArgs,
+									tpl_type.params);
 		}
 
 		assert(call.argRouting.size() == call.args.size() + call.implicitArgs.size());
@@ -879,6 +890,45 @@ AstContext::AstContext()
 	builtinId->boundTo= builtinDecl.get();
 	builtinDecl->identifier= builtinId.get();
 	builtinDecl->valueType= builtinType.get();
+}
+
+AstNode& traceValue(AstNode& node)
+{
+	if (node.type == AstNodeType::identifier) {
+		auto& id= static_cast<IdentifierNode&>(node);
+		if (id.boundTo)
+			return traceValue(*id.boundTo);
+	} else if (node.type == AstNodeType::varDecl) {
+		auto& var_decl= static_cast<VarDeclNode&>(node);
+		if (var_decl.value)
+			return *var_decl.value;
+		else
+			return *NONULL(var_decl.identifier); // extern decl
+	}
+
+	parseCheck(false, "Unable to trace value");
+}
+
+AstNode& traceType(AstNode& node)
+{
+	if (node.type == AstNodeType::identifier) {
+		auto& id= static_cast<IdentifierNode&>(node);
+		if (id.boundTo)
+			return traceType(*id.boundTo);
+	} else if (node.type == AstNodeType::varDecl) {
+		auto& var_decl= static_cast<VarDeclNode&>(node);
+		if (var_decl.valueType)
+			return *var_decl.valueType;
+	} else if (node.type == AstNodeType::call) {
+		auto& call= static_cast<CallNode&>(node);
+		parseCheck(call.tplCall, "Only tpl calls return types");
+		assert(call.func);
+		auto& val= traceValue(*call.func);
+		assert(val.type == AstNodeType::block);
+		return val;
+	}
+
+	parseCheck(false, "Unable to trace type");
 }
 
 AstContext genAst(const Tokens& tokens)
