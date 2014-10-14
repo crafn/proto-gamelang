@@ -809,11 +809,20 @@ AstNode& traceType(AstNode& node)
 			return *var_decl.valueType;
 	} else if (node.type == AstNodeType::call) {
 		auto& call= static_cast<CallNode&>(node);
-		/// @todo Fix incorrect logic (this returns value, not type)
 		assert(call.func);
 		auto& val= traceValue(*call.func);
-		assert(val.type == AstNodeType::block);
-		return val;
+		if (call.tplCall) {
+			assert(val.type == AstNodeType::block);
+			return val;
+		} else if (val.type == AstNodeType::block) {
+			auto& block= static_cast<BlockNode&>(val);
+			assert(!block.tplType);
+			if (block.structType) {
+				return block; // ctor call
+			} else if (block.funcType) {
+				assert(0 && "@todo");
+			}
+		}
 	} else if (node.type == AstNodeType::block) {
 		auto& block= static_cast<BlockNode&>(node);
 		if (block.tplType)
