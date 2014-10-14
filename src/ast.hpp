@@ -297,16 +297,9 @@ struct AstContext {
 		return static_cast<T*>(nodes.back().get());
 	}
 
-	VarDeclNode& getBuiltinTypeDecl() { return *NONULL(builtinDecl.get()); }
-
 private:
 	/// First should be the GlobalNode
 	std::list<std::unique_ptr<AstNode>> nodes;
-
-	/// Dummy declaration of int and others
-	std::unique_ptr<BuiltinTypeNode> builtinType;
-	std::unique_ptr<IdentifierNode> builtinId;
-	std::unique_ptr<VarDeclNode> builtinDecl;
 };
 
 /// e.g. identifier -> func block
@@ -321,6 +314,8 @@ AstNode& traceType(AstNode& expr);
 
 /// e.g. id -> id.boundTo->identifier
 const IdentifierNode& traceBoundId(const IdentifierNode& id);
+static IdentifierNode& traceBoundId(IdentifierNode& id)
+{ return const_cast<IdentifierNode&>(static_cast<const IdentifierNode&>(id)); }
 
 /// Finds implicit parameters and sets up routing table
 void routeCallArgs(	std::vector<AstNode*>& implicit,

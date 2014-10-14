@@ -2,7 +2,9 @@
 #include "ast.hpp"
 
 #include <map>
+#include <set>
 #include <stack>
+#include <tuple>
 
 namespace gamelang
 {
@@ -27,10 +29,22 @@ private:
 	struct TplArg {
 		const IdentifierNode* id; // Points to tpl id in input ctx, e.g. `T`
 		IdentifierNode* value; // Points to id in output ctx, e.g. `ConcreteType`
+
+		bool operator<(const TplArg& other) const
+		{
+			auto v= &traceValue(*value);
+			auto o_v= &traceValue(*other.value);
+			assert(	(v == o_v) == (value->name == other.value->name) &&
+					"Tracing bug");
+			return	std::tie(id, value->name) <
+					std::tie(other.id, other.value->name); }
 	};
 	struct TplScope {
 		/// Given arguments to tpl struct/function
 		std::vector<TplArg> args;
+
+		bool operator<(const TplScope& other) const
+		{ return args < other.args; }
 
 		std::string str() const
 		{
@@ -45,10 +59,12 @@ private:
 
 	/// Output nodes
 	std::stack<AstNode*> nodeStack;
-	/// @todo include tpl scope to key
-	std::map<const AstNode*, AstNode*> inToOutNode;
+	/// Maps input nodes to generated output nodes
+	std::map<const AstNode*, std::map<TplScope, AstNode*>> inToOutNode;
 	/// Used to insert template instantiations in place of original tpl decls
 	std::map<const TplTypeNode*, BlockNodeIt> tplTypePlaces;
+	/// Keeps track of instantiated templates
+	std::set<std::tuple<const TplTypeNode*, AstNode*>> tplInstances;
 
 	template <typename T>
 	AstNode* run(const T* node, const TplScope& scope)
@@ -59,9 +75,9 @@ private:
 
 	AstNode* chooseRun(const AstNode& node, const TplScope& scope)
 	{
-		auto it= inToOutNode.find(&node);
-		if (it != inToOutNode.end())
-			return it->second; // This input-node has already been processed
+		auto already_generated= findOutNodeOf(node, scope);
+		if (already_generated)
+			return already_generated;
 
 		AstNode* ret= nullptr;
 		CondRun<AstNodeType::global,        GlobalNode>::eval(*this, node, ret, scope);
@@ -71,6 +87,7 @@ private:
 		CondRun<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::structType,    StructTypeNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::builtinType,   BuiltinTypeNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::stringLiteral, StringLiteralNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::nullLiteral,   NullLiteralNode>::eval(*this, node, ret, scope);
@@ -82,7 +99,7 @@ private:
 		CondRun<AstNodeType::comment,       CommentNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::tplType,       TplTypeNode>::eval(*this, node, ret, scope);
 		if (ret) {
-			inToOutNode[&node]= ret;
+			inToOutNode[&node][scope]= ret;
 		}
 		return ret;
 	}
@@ -95,8 +112,16 @@ private:
 		tplTypePlaces[&in_place]= global.nodes.end();
 	}
 
-	void insertTplInstance(const TplTypeNode& in_place, AstNode& node)
+	void tryInsertTplInstance(const TplTypeNode& in_place, AstNode& node)
 	{
+		auto&& tpl_inst_identity= 
+			std::make_tuple<const TplTypeNode*, AstNode*>
+				(&in_place, &node);
+		if (	tplInstances.find(tpl_inst_identity) !=
+				tplInstances.end())
+			return;
+		tplInstances.insert(tpl_inst_identity);
+
 		auto place_it= tplTypePlaces.find(&in_place);
 		assert(place_it != tplTypePlaces.end());
 		auto place= place_it->second;
@@ -106,6 +131,18 @@ private:
 		auto& global= static_cast<GlobalNode&>(root);
 
 		global.nodes.insert(place, &node);
+	}
+
+	AstNode* findOutNodeOf(const AstNode& in, const TplScope& scope)
+	{
+		auto m_it= inToOutNode.find(&in);
+		if (m_it != inToOutNode.end()) {
+			auto& node_map= m_it->second;
+			auto out_it= node_map.find(scope);
+			if (out_it != node_map.end())
+				return out_it->second;
+		}
+		return nullptr;
 	}
 
 	AstNode* runSpecific(const GlobalNode& global_in, const TplScope& scope)
@@ -139,9 +176,10 @@ private:
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
 
-		auto it= inToOutNode.find(id_in.boundTo);
-		if (it != inToOutNode.end()) {
-			id_out->boundTo= it->second;
+		if (id_in.boundTo) {
+			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
+			if (bound_out)
+				id_out->boundTo= bound_out;
 		}
 		return id_out;
 	}
@@ -266,6 +304,11 @@ private:
 		return st_type_out;
 	}
 
+	AstNode* runSpecific(const BuiltinTypeNode& bt_type_in, const TplScope& scope)
+	{
+		return output.newNode<BuiltinTypeNode>();
+	}
+
 	AstNode* runSpecific(const NumLiteralNode& num_in, const TplScope& scope)
 	{
 		auto num_out= output.newNode<NumLiteralNode>();
@@ -291,20 +334,6 @@ private:
 		if (op_in.opType == UOpType::declType) {
 			auto& expr= *NONULL(run(op_in.target, scope));
 			return &traceType(expr);
-/*
-			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
-						"Only deduction from call return type supported");
-			auto call= static_cast<CallNode*>(op->target);
-
-			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
-			// the declaration `let Chicken := struct {..}`
-			assert(NONULL(call->func)->type == AstNodeType::identifier);
-			auto func_id= static_cast<IdentifierNode*>(call->func);
-			assert(NONULL(func_id->boundTo)->type == AstNodeType::varDecl);
-			auto ret_type_decl= static_cast<VarDeclNode*>(func_id->boundTo);
-
-			// Resolve valueType to the identifier of the struct type
-			var.valueType= ret_type_decl->identifier;*/
 		} else {
 			auto op_out= output.newNode<UOpNode>();
 			op_out->opType= op_in.opType;
@@ -382,7 +411,7 @@ private:
 				assert(tpl_inst->type == AstNodeType::varDecl);
 				auto tpl_inst_decl= static_cast<VarDeclNode*>(tpl_inst);
 
-				insertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
+				tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
 				return NONULL(tpl_inst_decl->identifier);
 			}
 		} else { // `foo(bar)`

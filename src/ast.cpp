@@ -131,8 +131,36 @@ struct Parser {
 
 	AstContext parse()
 	{
-		// Start parsing
 		auto root= newNode<GlobalNode>();
+
+		// Insert builtin types of language
+		std::vector<std::string> builtin_names= {
+			"int",
+			"uint",
+			"int32",
+			"int64",
+			"void",
+			"bool",
+			"true",
+			"false",
+			"float",
+			"double",
+			"char"
+		};
+		for (auto& name : builtin_names) {
+			auto builtin_type= context.newNode<BuiltinTypeNode>();
+			auto builtin_id= context.newNode<IdentifierNode>();
+			auto builtin_decl= context.newNode<VarDeclNode>();
+
+			builtin_id->name= name;
+			builtin_id->boundTo= builtin_decl;
+			builtin_decl->identifier= builtin_id;
+			builtin_decl->valueType= builtin_type;
+
+			root->nodes.emplace_back(builtin_decl);
+		}
+
+		// Start parsing
 		token= tokens.begin();
 		while (token->type != TokenType::eof) {
 			root->nodes.emplace_back(parseExpr());
@@ -199,8 +227,6 @@ private:
 	{
 		auto type= newNode<IdentifierNode>();
 		type->name= text;
-		if (isBuiltinIdentifier(type->name))
-			type->boundTo= &context.getBuiltinTypeDecl();
 		log(type->name);
 		return type;
 	}
@@ -276,7 +302,6 @@ private:
 			/// @todo Implicit return type
 			auto return_type= newNode<IdentifierNode>();
 			return_type->name= "void";
-			return_type->boundTo= &context.getBuiltinTypeDecl();
 			func_type->returnType= return_type;
 		}
 
@@ -757,16 +782,7 @@ private:
 } // anonymous
 
 AstContext::AstContext()
-{
-	builtinType.reset(new BuiltinTypeNode{});
-	builtinId.reset(new IdentifierNode{});
-	builtinDecl.reset(new VarDeclNode{});
-
-	builtinId->name= "builtin";
-	builtinId->boundTo= builtinDecl.get();
-	builtinDecl->identifier= builtinId.get();
-	builtinDecl->valueType= builtinType.get();
-}
+{ }
 
 AstNode& traceValue(AstNode& node)
 {

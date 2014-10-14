@@ -4,6 +4,8 @@ let Pair := tpl[T: struct, U: struct] -> struct
 	var second : ?U = null;
 };
 
+let SomePair := Pair[float, void];
+
 let main := fn() -> int
 {
 	var integer : int = 10;
@@ -11,6 +13,12 @@ let main := fn() -> int
 
 	var p := Pair[.U= int, char](&character);
 	p.second = &integer;
+
+	var p2 := Pair[int, int](&integer, &integer);
+	var p2_double := Pair[int, int]();
+	
+	/// @todo Make compile
+	//var p3 := SomePair();
 
 	return 0;
 };

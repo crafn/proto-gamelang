@@ -469,6 +469,11 @@ private:
 	void specificMod(VarDeclNode& var)
 	{
 		assert(var.valueType);
+		if (var.valueType->type == AstNodeType::builtinType) {
+			removeThisRequest= true;
+			return;
+		}
+
 		if (var.valueType->type == AstNodeType::block) {
 			// Replace in-place type with identifier
 			var.valueType= static_cast<BlockNode*>(var.valueType)->boundTo;
