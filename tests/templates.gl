@@ -8,7 +8,9 @@ let main := fn() -> int
 {
 	var integer : int = 10;
 	var character : char = 57;
-	Pair[.T= int, char](&integer, &character);
+
+	var p := Pair[.U= int, char](&character);
+	p.second = &integer;
 
 	return 0;
 };

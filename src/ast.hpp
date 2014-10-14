@@ -319,7 +319,7 @@ AstNode& traceValue(AstNode& expr);
 ///      identifier -> struct type
 AstNode& traceType(AstNode& expr);
 
-/// Returns id to which this id refers to
+/// e.g. id -> id.boundTo->identifier
 const IdentifierNode& traceBoundId(const IdentifierNode& id);
 
 /// Finds implicit parameters and sets up routing table

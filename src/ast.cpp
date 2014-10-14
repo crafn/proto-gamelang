@@ -683,28 +683,6 @@ private:
 		tie(var.valueType);
 		if (var.value)
 			tie(var.value);
-
-		// Resolve decltype
-		if (	var.valueType->type == AstNodeType::uOp &&
-				static_cast<UOpNode*>(var.valueType)->opType
-					== UOpType::declType) {
-			/// @todo Resolving types and metaprograms probably need another pass
-			auto op= static_cast<UOpNode*>(var.valueType);
-			
-			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
-						"Only deduction from call return type supported");
-			auto call= static_cast<CallNode*>(op->target);
-
-			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
-			// the declaration `let Chicken := struct {..}`
-			assert(NONULL(call->func)->type == AstNodeType::identifier);
-			auto func_id= static_cast<IdentifierNode*>(call->func);
-			assert(NONULL(func_id->boundTo)->type == AstNodeType::varDecl);
-			auto ret_type_decl= static_cast<VarDeclNode*>(func_id->boundTo);
-
-			// Resolve valueType to the identifier of the struct type
-			var.valueType= ret_type_decl->identifier;
-		}
 	}
 
 	void tieSpecific(FuncTypeNode& func)
@@ -821,7 +799,7 @@ AstNode& traceType(AstNode& node)
 			return *var_decl.valueType;
 	} else if (node.type == AstNodeType::call) {
 		auto& call= static_cast<CallNode&>(node);
-		parseCheck(call.tplCall, "Only tpl calls return types");
+		/// @todo Fix incorrect logic (this returns value, not type)
 		assert(call.func);
 		auto& val= traceValue(*call.func);
 		assert(val.type == AstNodeType::block);

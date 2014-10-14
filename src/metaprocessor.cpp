@@ -287,10 +287,30 @@ private:
 
 	AstNode* runSpecific(const UOpNode& op_in, const TplScope& scope)
 	{
-		auto op_out= output.newNode<UOpNode>();
-		op_out->opType= op_in.opType;
-		op_out->target= NONULL(run(op_in.target, scope));
-		return op_out;
+		// Resolve decltype
+		if (op_in.opType == UOpType::declType) {
+			auto& expr= *NONULL(run(op_in.target, scope));
+			return &traceType(expr);
+/*
+			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
+						"Only deduction from call return type supported");
+			auto call= static_cast<CallNode*>(op->target);
+
+			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
+			// the declaration `let Chicken := struct {..}`
+			assert(NONULL(call->func)->type == AstNodeType::identifier);
+			auto func_id= static_cast<IdentifierNode*>(call->func);
+			assert(NONULL(func_id->boundTo)->type == AstNodeType::varDecl);
+			auto ret_type_decl= static_cast<VarDeclNode*>(func_id->boundTo);
+
+			// Resolve valueType to the identifier of the struct type
+			var.valueType= ret_type_decl->identifier;*/
+		} else {
+			auto op_out= output.newNode<UOpNode>();
+			op_out->opType= op_in.opType;
+			op_out->target= NONULL(run(op_in.target, scope));
+			return op_out;
+		}
 	}
 
 	AstNode* runSpecific(const BiOpNode& op_in, const TplScope& scope)
@@ -349,7 +369,7 @@ private:
 
 					int param_i= routing[i];
 					assert(param_i >= 0 && param_i < sub_scope.args.size());
-					sub_scope.args[param_i].id= tpl_params[i]->identifier;
+					sub_scope.args[param_i].id= tpl_params[param_i]->identifier;
 					sub_scope.args[param_i].value= static_cast<IdentifierNode*>(arg_out);
 					++i;
 				};

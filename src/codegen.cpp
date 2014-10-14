@@ -309,9 +309,9 @@ private:
 	std::vector<AstNode*> localInsertRequests;
 	bool removeThisRequest= false;
 
-	std::string clashPrevention() const { return "_cR_"; }
+	std::string clashPrevention() const { return "_CG_"; }
 	std::string ctorName(std::string type_name) const
-	{ return clashPrevention() + "ctor_" + type_name; }
+	{ return "ctor___" + type_name; }
 
 	template <typename T>
 	void mod(T*& node)
@@ -469,6 +469,12 @@ private:
 	void specificMod(VarDeclNode& var)
 	{
 		assert(var.valueType);
+		if (var.valueType->type == AstNodeType::block) {
+			// Replace in-place type with identifier
+			var.valueType= static_cast<BlockNode*>(var.valueType)->boundTo;
+			assert(var.valueType);
+		}
+
 		if (var.value) {
 			mangledNames[var.value]= NONULL(var.identifier)->name;
 			mod(var.value);
