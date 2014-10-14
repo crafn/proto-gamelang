@@ -203,6 +203,11 @@ private:
 				gen(target);
 				emit("*");
 			break;
+			case UOpType::sizeOf:
+				emit("sizeof(");
+				gen(target);
+				emit(")");
+			break;
 			default: assert(0 && "Unknown UOP");
 		}
 	}

@@ -54,6 +54,7 @@ enum class TokenType {
 	kwIf, // if
 	kwExtern, // extern
 	kwTpl, // tpl
+	kwSizeof, // sizeof
 	unknown
 };
 
@@ -105,6 +106,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::kwIf: return "kwIf";
 		case TokenType::kwExtern: return "kwExtern";
 		case TokenType::kwTpl: return "kwTpl";
+		case TokenType::kwSizeof: return "kwSizeof";
 		case TokenType::unknown:
 		default: return "unknown";
 	}
@@ -158,6 +160,7 @@ static const char* str(TokenType type)
 		case TokenType::kwIf: return "if";
 		case TokenType::kwExtern: return "extern";
 		case TokenType::kwTpl: return "tpl";
+		case TokenType::kwSizeof: return "sizeof";
 		case TokenType::unknown:
 		default: return "???";
 	}

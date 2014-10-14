@@ -127,6 +127,8 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwExtern;
 	if (str == "tpl")
 		return TokenType::kwTpl;
+	if (str == "sizeof")
+		return TokenType::kwSizeof;
 	return TokenType::unknown;
 }
 

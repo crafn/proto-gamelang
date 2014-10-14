@@ -1,0 +1,13 @@
+let Type := struct {
+	var a : int;
+	var b : ?char;
+};
+
+let main := fn() -> int
+{
+	var s_int : int = sizeof(int);
+	var s_type : int = sizeof(Type);
+	var s_value : int = sizeof(10);
+	return 0;
+};
+

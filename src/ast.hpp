@@ -183,7 +183,8 @@ enum class UOpType {
 	addrOf,
 	deref,
 	pointer, // type qualifier
-	reference // type qualifier
+	reference, // type qualifier
+	sizeOf
 };
 
 /// `!flag`

@@ -11,7 +11,8 @@ test_files= [
         "loops.gl",
         "methods.gl",
         "extern.gl",
-        "templates.gl"
+        "templates.gl",
+        "sizeof.gl"
 ]
 
 if __name__ == "__main__":

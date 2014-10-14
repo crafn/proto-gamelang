@@ -37,21 +37,6 @@ void parseCheck(bool expr, const std::string& msg)
 	assert(expr);
 }
 
-bool isBuiltinIdentifier(const std::string& name)
-{
-	return	name == "int" ||
-			name == "uint" ||
-			name == "int32" ||
-			name == "int64" ||
-			name == "void" ||
-			name == "bool" ||
-			name == "true" ||
-			name == "false" ||
-			name == "float" ||
-			name == "double" ||
-			name == "char";
-}
-
 /// Binding power
 enum class Bp : int {
 	eof= 0,
@@ -121,6 +106,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwElse:       return Bp::keyword;
 		case TokenType::kwExtern:     return Bp::keyword;
 		case TokenType::kwTpl:        return Bp::keyword;
+		case TokenType::kwSizeof:     return Bp::keyword;
 		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
 }
@@ -370,7 +356,10 @@ private:
 			case TokenType::question:
 				op_type= UOpType::pointer;
 			break;
-			default: assert(0 && "Unknown UOp");
+			case TokenType::kwSizeof:
+				op_type= UOpType::sizeOf;
+			break;
+			default: log(enumStr(t)); assert(0 && "Unknown UOp");
 		}
 
 		auto op= newNode<UOpNode>();
@@ -382,11 +371,6 @@ private:
 	/// `foo(1, "asd")`
 	CallNode* parseCall(AstNode& func, TokenType closing= TokenType::closeParen)
 	{
-		/// @todo Support for calling arbitrary expr
-		//parseCheck(	func.type == AstNodeType::identifier,
-		//			"Only simple func calls supported");
-		//auto identifier= static_cast<IdentifierNode*>(&func);
-
 		auto call= newNode<CallNode>();
 		call->func= &func;
 		while (token->type != closing) {
@@ -476,6 +460,14 @@ private:
 		return call;
 	}
 
+	AstNode* parseSizeOf()
+	{
+		match(TokenType::openParen);
+		auto op= parseUOp(TokenType::kwSizeof);
+		match(TokenType::closeParen);
+		return op;
+	}
+
 	AstNode* nud(It it)
 	{
 		switch (it->type) {
@@ -526,6 +518,8 @@ private:
 				return parseExternal();
 			case TokenType::kwTpl:
 				return parseTemplateType();
+			case TokenType::kwSizeof:
+				return parseSizeOf();
 			default:;
 		}
 		parseCheck(false, "Invalid nud token: " + it->text);
