@@ -84,6 +84,7 @@ struct IdentifierNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+struct StructTypeNode;
 struct TplTypeNode;
 /// `{ ... }`
 struct BlockNode final : AstNode {
@@ -91,7 +92,7 @@ struct BlockNode final : AstNode {
 
 	bool loop= false;
 	bool external= false; /// FFI
-	AstNode* structType= nullptr;
+	StructTypeNode* structType= nullptr;
 	AstNode* funcType= nullptr;
 	TplTypeNode* tplType= nullptr; /// Used if block is a template
 	AstNode* condition= nullptr;
@@ -232,15 +233,15 @@ struct CallNode final : AstNode {
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;
 	bool tplCall= false; /// true if call has form `foo[..]`
+	/// If true, the call has form `first_arg.foo(second_arg)`
+	bool methodLike= false;
 
-	// Set at tying
+	// Metaprocessor sets
 
 	/// Extends `args`
 	std::vector<AstNode*> implicitArgs;
 	/// argRouting[arg_i] == index in func decl
 	std::vector<int> argRouting;
-	/// If true, the call has form `first_arg.foo(second_arg)`
-	bool methodLike= false;
 
 	CallNode(): AstNode(AstNodeType::call) {}
 	std::vector<AstNode*> getSubNodes() const override
@@ -259,9 +260,14 @@ struct CommentNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+enum class TplYieldType {
+	structure
+};
+
 /// `tpl [params]`
 struct TplTypeNode final : AstNode {
 	std::vector<VarDeclNode*> params;
+	TplYieldType yieldType= TplYieldType::structure;
 
 	TplTypeNode(): AstNode(AstNodeType::tplType) {}
 	std::vector<AstNode*> getSubNodes() const override
@@ -312,6 +318,14 @@ AstNode& traceValue(AstNode& expr);
 ///      vector -> tpl type
 ///      identifier -> struct type
 AstNode& traceType(AstNode& expr);
+
+/// Returns id to which this id refers to
+const IdentifierNode& traceBoundId(const IdentifierNode& id);
+
+/// Finds implicit parameters and sets up routing table
+void routeCallArgs(	std::vector<AstNode*>& implicit,
+					std::vector<int>& routing,
+					const CallNode& call);
 
 AstContext genAst(const Tokens& tokens);
 

@@ -15,60 +15,105 @@ struct Processor {
 	AstContext run()
 	{
 		const AstNode* root= &input.getRootNode();
-		run(root);
+		run(root, TplScope{});
 		return std::move(output);
 	}
 
 private:
 	const AstContext& input;
 	AstContext output;
+
+	using BlockNodeIt= std::list<AstNode*>::iterator;
+	struct TplArg {
+		const IdentifierNode* id; // Points to tpl id in input ctx, e.g. `T`
+		IdentifierNode* value; // Points to id in output ctx, e.g. `ConcreteType`
+	};
+	struct TplScope {
+		/// Given arguments to tpl struct/function
+		std::vector<TplArg> args;
+
+		std::string str() const
+		{
+			std::string ret;
+			for (auto&& a : args) {
+				ret += "_";
+				ret += NONULL(a.value)->name;
+			}
+			return ret;
+		}
+	};
+
 	/// Output nodes
 	std::stack<AstNode*> nodeStack;
+	/// @todo include tpl scope to key
 	std::map<const AstNode*, AstNode*> inToOutNode;
+	/// Used to insert template instantiations in place of original tpl decls
+	std::map<const TplTypeNode*, BlockNodeIt> tplTypePlaces;
 
 	template <typename T>
-	AstNode* run(const T* node)
+	AstNode* run(const T* node, const TplScope& scope)
 	{
 		assert(node);
-		return chooseRun(*node);
+		return chooseRun(*node, scope);
 	}
 
-	AstNode* chooseRun(const AstNode& node)
+	AstNode* chooseRun(const AstNode& node, const TplScope& scope)
 	{
 		auto it= inToOutNode.find(&node);
 		if (it != inToOutNode.end())
 			return it->second; // This input-node has already been processed
 
 		AstNode* ret= nullptr;
-		CondRun<AstNodeType::global,        GlobalNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::endStatement,  EndStatementNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::identifier,    IdentifierNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::block,         BlockNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::structType,    StructTypeNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::stringLiteral, StringLiteralNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::nullLiteral,   NullLiteralNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::uOp,           UOpNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::biOp,          BiOpNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::call,          CallNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::label,         LabelNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::comment,       CommentNode>::eval(*this, node, ret);
-		CondRun<AstNodeType::tplType,       TplTypeNode>::eval(*this, node, ret);
+		CondRun<AstNodeType::global,        GlobalNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::endStatement,  EndStatementNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::identifier,    IdentifierNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::block,         BlockNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::structType,    StructTypeNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::stringLiteral, StringLiteralNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::nullLiteral,   NullLiteralNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::uOp,           UOpNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::biOp,          BiOpNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::call,          CallNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::label,         LabelNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::comment,       CommentNode>::eval(*this, node, ret, scope);
+		CondRun<AstNodeType::tplType,       TplTypeNode>::eval(*this, node, ret, scope);
 		if (ret) {
 			inToOutNode[&node]= ret;
 		}
 		return ret;
 	}
 
-	AstNode* runSpecific(const GlobalNode& global_in)
+	void markTplTypePlace(const TplTypeNode& in_place)
+	{
+		AstNode& root= output.getRootNode();
+		assert(root.type == AstNodeType::global);
+		auto& global= static_cast<GlobalNode&>(root);
+		tplTypePlaces[&in_place]= global.nodes.end();
+	}
+
+	void insertTplInstance(const TplTypeNode& in_place, AstNode& node)
+	{
+		auto place_it= tplTypePlaces.find(&in_place);
+		assert(place_it != tplTypePlaces.end());
+		auto place= place_it->second;
+		
+		AstNode& root= output.getRootNode();
+		assert(root.type == AstNodeType::global);
+		auto& global= static_cast<GlobalNode&>(root);
+
+		global.nodes.insert(place, &node);
+	}
+
+	AstNode* runSpecific(const GlobalNode& global_in, const TplScope& scope)
 	{
 		auto global_out= output.newNode<GlobalNode>();
 		nodeStack.push(global_out);
 		for (auto&& node : global_in.nodes) {
-			AstNode* result= run(node);
+			AstNode* result= run(node, scope);
 			if (result)
 				global_out->nodes.emplace_back(result);
 		}
@@ -76,16 +121,24 @@ private:
 		return global_out;
 	}
 
-	AstNode* runSpecific(const EndStatementNode& end)
+	AstNode* runSpecific(const EndStatementNode& end, const TplScope& scope)
 	{
 		return output.newNode<EndStatementNode>();
 	}
 
-	AstNode* runSpecific(const IdentifierNode& id_in)
+	AstNode* runSpecific(const IdentifierNode& id_in, const TplScope& scope)
 	{
+		// If input id is bound to a tpl parameter,
+		// substitute it with the scope argument
+		for (auto&& arg : scope.args) {
+			if (arg.id == &traceBoundId(id_in)) {
+				return NONULL(arg.value);
+			}
+		}
+
 		auto id_out= output.newNode<IdentifierNode>();
-		id_out->name= id_in.name;	
-	
+		id_out->name= id_in.name;
+
 		auto it= inToOutNode.find(id_in.boundTo);
 		if (it != inToOutNode.end()) {
 			id_out->boundTo= it->second;
@@ -93,44 +146,56 @@ private:
 		return id_out;
 	}
 
-	AstNode* runSpecific(const BlockNode& block_in)
+	AstNode* runSpecific(const BlockNode& block_in, const TplScope& scope)
 	{
 		AstNode& parent= *NONULL(nodeStack.top());
 
-		assert(!block_in.tplType && "Shouldn't be creating templates");
+		assert(!(block_in.tplType && scope.args.empty()) && "Shouldn't be creating templates");
 
 		auto block_out= output.newNode<BlockNode>();
 		nodeStack.push(block_out);
 
 		if (parent.type == AstNodeType::varDecl) {
-			auto& parent_var= static_cast<VarDeclNode&>(parent);
-			block_out->boundTo= parent_var.identifier;
+			auto parent_var= static_cast<VarDeclNode*>(&parent);
+			block_out->boundTo= parent_var->identifier;
 		}
 
 		block_out->loop= block_in.loop;
 		block_out->external= block_in.external;
+		if (block_in.tplType) {
+			// Tpl struct type becomes concrete struct
+			assert(block_in.structType && "@todo Func tpl");
+			assert(!scope.args.empty());
+			assert(!block_out->structType);
+			auto result= NONULL(run(block_in.structType, scope));
+			assert(result->type == AstNodeType::structType);
+			block_out->structType= static_cast<StructTypeNode*>(result);
+		} else if (block_in.structType) {
+			auto result= NONULL(run(block_in.structType, scope));
+			assert(result->type == AstNodeType::structType);
+			block_out->structType= static_cast<StructTypeNode*>(result);
+		} else if (block_in.funcType) {
+			block_out->funcType= NONULL(run(block_in.funcType, scope));
+		} else if (block_in.condition) {
+			block_out->condition= NONULL(run(block_in.condition, scope));
+		}
 
 		for (auto&& node : block_in.nodes) {
-			auto result= run(node);
-			if (result)
+			auto result= run(node, scope);
+			if (result) 
 				block_out->nodes.emplace_back(result);
 		}
-	
-		if (block_in.structType)
-			block_out->structType= NONULL(run(block_in.structType));
-		if (block_in.funcType)
-			block_out->funcType= NONULL(run(block_in.funcType));
-		if (block_in.condition)
-			block_out->condition= NONULL(run(block_in.condition));
 
 		nodeStack.pop();
 		return block_out;
 	}
 
-	AstNode* runSpecific(const VarDeclNode& var_in)
+	AstNode* runSpecific(const VarDeclNode& var_in, const TplScope& scope)
 	{
 		/// @todo use traceValue
-		if (NONULL(var_in.valueType)->type == AstNodeType::tplType) {
+		bool is_tpl_decl= NONULL(var_in.valueType)->type == AstNodeType::tplType;
+		if (is_tpl_decl && scope.args.empty()) {
+			markTplTypePlace(static_cast<TplTypeNode&>(*var_in.valueType));
 			return nullptr;
 		} 
 
@@ -140,181 +205,223 @@ private:
 		var_out->constant= var_in.constant;
 		var_out->param= var_in.param;
 
-		auto id_node= NONULL(run(var_in.identifier));
-		assert(id_node->type == AstNodeType::identifier);
-		var_out->identifier= static_cast<IdentifierNode*>(id_node);
-		var_out->identifier->boundTo= var_out;
-
-		if (var_in.valueType->type != AstNodeType::structType) {
-			var_out->valueType= NONULL(run(var_in.valueType));
-			if (var_in.value)
-				var_out->value= NONULL(run(var_in.value));
-		} else { // Struct type queries stuff from struct; hence reverse run order
-			if (var_in.value)
-				var_out->value= NONULL(run(var_in.value));
-			var_out->valueType= NONULL(run(var_in.valueType));
+		if (is_tpl_decl) {
+			var_out->identifier= output.newNode<IdentifierNode>();
+			var_out->identifier->boundTo= var_out;
+			var_out->identifier->name=
+				NONULL(var_in.identifier)->name + "__" + scope.str();
+		} else {
+			auto id_node= NONULL(run(var_in.identifier, scope));
+			assert(id_node->type == AstNodeType::identifier);
+			var_out->identifier= static_cast<IdentifierNode*>(id_node);
+			var_out->identifier->boundTo= var_out;
 		}
 
+		var_out->valueType= run(var_in.valueType, scope); // null if tpl
+		if (var_in.value)
+			var_out->value= NONULL(run(var_in.value, scope));
 
-		// Resolve decltype
-		/*if (	var.valueType->type == AstNodeType::uOp &&
-				static_cast<UOpNode*>(var.valueType)->opType
-					== UOpType::declType) {
-			/// @todo Resolving types and metaprograms probably need another pass
-			auto op= static_cast<UOpNode*>(var.valueType);
-			
-			parseCheck(	NONULL(op->target)->type == AstNodeType::call,
-						"Only deduction from call return type supported");
-			auto call= static_cast<CallNode*>(op->target);
+		if (var_out->valueType == nullptr) {
+			assert(var_out->value && "Can't have both null type and null value");
+			var_out->valueType= &traceType(*var_out->value);
+		}
 
-			// Identifier `Chicken` in ctor call `Chicken(10, 20)` is bound to
-			// the declaration `let Chicken := struct {..}`
-			assert(NONULL(call->func)->type == AstNodeType::identifier);
-			auto func_id= static_cast<IdentifierNode*>(call->func);
-			assert(NONULL(func_id->boundTo)->type == AstNodeType::varDecl);
-			auto ret_type_decl= static_cast<VarDeclNode*>(func_id->boundTo);
-
-			// Resolve valueType to the identifier of the struct type
-			var.valueType= ret_type_decl->identifier;
-		}*/
+		assert(var_out->valueType != nullptr);
 
 		nodeStack.pop();
 		return var_out;
 	}
 
-	AstNode* runSpecific(const FuncTypeNode& func_in)
+	AstNode* runSpecific(const FuncTypeNode& func_in, const TplScope& scope)
 	{
 		/// @todo tpl function
 		auto func_out= output.newNode<FuncTypeNode>();
 		nodeStack.push(func_out);
 
 		for (auto&& node : func_in.params) {
-			auto result= run(node);
+			auto result= run(node, scope);
 			if (result) {
 				assert(result->type == AstNodeType::varDecl);
 				auto var= static_cast<VarDeclNode*>(result);
 				func_out->params.emplace_back(var);
 			}
 		}
-		func_out->returnType= NONULL(run(func_in.returnType));
+		func_out->returnType= NONULL(run(func_in.returnType, scope));
 
 		nodeStack.pop();
 		return func_out;
 	}
 
-	AstNode* runSpecific(const StructTypeNode& st_type_in)
+	AstNode* runSpecific(const StructTypeNode& st_type_in, const TplScope& scope)
 	{
 		auto st_type_out= output.newNode<StructTypeNode>();
-		for (auto&& node_in : st_type_in.varDecls) {
-			auto node_out= inToOutNode[node_in];
-			assert(node_out);
-			assert(node_out->type == AstNodeType::varDecl);
-			auto var= static_cast<VarDeclNode*>(node_out);
-			st_type_out->varDecls.emplace_back(var);
+		for (auto&& node : st_type_in.varDecls) {
+			auto result= run(node, scope);
+			if (result) {
+				assert(result->type == AstNodeType::varDecl);
+				auto var= static_cast<VarDeclNode*>(result);
+				st_type_out->varDecls.emplace_back(var);
+			}
 		}
 		return st_type_out;
 	}
 
-	AstNode* runSpecific(const NumLiteralNode& num_in)
+	AstNode* runSpecific(const NumLiteralNode& num_in, const TplScope& scope)
 	{
 		auto num_out= output.newNode<NumLiteralNode>();
 		num_out->value= num_in.value;
 		return num_out;
 	}
 
-	AstNode* runSpecific(const StringLiteralNode& str_in)
+	AstNode* runSpecific(const StringLiteralNode& str_in, const TplScope& scope)
 	{
 		auto str_out= output.newNode<StringLiteralNode>();
 		str_out->str= str_in.str;
 		return str_out;
 	}
 
-	AstNode* runSpecific(const NullLiteralNode& null_in)
+	AstNode* runSpecific(const NullLiteralNode& null_in, const TplScope& scope)
 	{
 		return output.newNode<NullLiteralNode>();
 	}
 
-	AstNode* runSpecific(const UOpNode& op_in)
+	AstNode* runSpecific(const UOpNode& op_in, const TplScope& scope)
 	{
 		auto op_out= output.newNode<UOpNode>();
 		op_out->opType= op_in.opType;
-		op_out->target= NONULL(run(op_in.target));
+		op_out->target= NONULL(run(op_in.target, scope));
 		return op_out;
 	}
 
-	AstNode* runSpecific(const BiOpNode& op_in)
+	AstNode* runSpecific(const BiOpNode& op_in, const TplScope& scope)
 	{
 		auto op_out= output.newNode<BiOpNode>();
 		nodeStack.push(op_out);
 		op_out->opType= op_in.opType;
-		op_out->lhs= NONULL(run(op_in.lhs));
-		op_out->rhs= NONULL(run(op_in.rhs));
+		op_out->lhs= NONULL(run(op_in.lhs, scope));
+		op_out->rhs= NONULL(run(op_in.rhs, scope));
 		nodeStack.pop();
 		return op_out;
 	}
 
-	AstNode* runSpecific(const CtrlStatementNode& ctrl_in)
+	AstNode* runSpecific(const CtrlStatementNode& ctrl_in, const TplScope& scope)
 	{
 		auto ctrl_out= output.newNode<CtrlStatementNode>();
 		nodeStack.push(ctrl_out);
 		ctrl_out->statementType= ctrl_in.statementType;
 		if (ctrl_in.value) {
-			ctrl_out->value= NONULL(run(ctrl_in.value));
+			ctrl_out->value= NONULL(run(ctrl_in.value, scope));
 		}
 		nodeStack.pop();
 		return ctrl_out;
 	}
 
-	AstNode* runSpecific(const CallNode& call_in)
+	AstNode* runSpecific(const CallNode& call_in, const TplScope& scope)
 	{
-		/// @todo Tpl call
-		assert(!call_in.tplCall && "Shouldn't be creating templates");
-		auto call_out= output.newNode<CallNode>();
-		nodeStack.push(call_out);
+		if (call_in.tplCall) { // `vector[int]`
+			auto& traced= traceValue(*NONULL(call_in.func));
+			assert(traced.type == AstNodeType::block);
+			auto& tpl_block= static_cast<const BlockNode&>(traced);
+			assert(tpl_block.tplType);
+			auto& tpl_params= tpl_block.tplType->params;
+			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
+			assert(tpl_decl.type == AstNodeType::varDecl);
 
-		call_out->namedArgs= call_in.namedArgs;
-		call_out->argRouting= call_in.argRouting;
-		call_out->methodLike= call_in.methodLike;
-		
-		call_out->func= NONULL(run(call_in.func));
-		for (auto&& arg : call_in.args) {
-			call_out->args.emplace_back(NONULL(run(arg))); 
+			{ // Instantiate template
+				assert(tpl_block.structType && "@todo tpl funcs");
+
+				std::vector<AstNode*> implicit_args;
+				std::vector<int> routing;
+				routeCallArgs(implicit_args, routing, call_in);
+
+				// Set up scope for template args
+				TplScope sub_scope;
+				sub_scope.args.resize(	call_in.args.size() +
+										implicit_args.size());
+				std::size_t i= 0;
+				auto setNextArg= [&] (AstNode* arg_in)
+				{
+					assert(arg_in);
+					assert(arg_in->type == AstNodeType::identifier && "@todo tpl arg exprs");
+
+					auto arg_out= NONULL(run(arg_in, scope));
+					assert(arg_out->type == AstNodeType::identifier);
+
+					int param_i= routing[i];
+					assert(param_i >= 0 && param_i < sub_scope.args.size());
+					sub_scope.args[param_i].id= tpl_params[i]->identifier;
+					sub_scope.args[param_i].value= static_cast<IdentifierNode*>(arg_out);
+					++i;
+				};
+				for (auto&& arg : call_in.args)
+					setNextArg(arg);
+				for (auto&& arg : implicit_args)
+					setNextArg(arg);
+
+				auto tpl_inst= NONULL(run(&tpl_decl, sub_scope));
+				assert(tpl_inst->type == AstNodeType::varDecl);
+				auto tpl_inst_decl= static_cast<VarDeclNode*>(tpl_inst);
+
+				insertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
+				return NONULL(tpl_inst_decl->identifier);
+			}
+		} else { // `foo(bar)`
+			assert(!call_in.tplCall && "Shouldn't be creating templates");
+			auto call_out= output.newNode<CallNode>();
+			nodeStack.push(call_out);
+
+			call_out->namedArgs= call_in.namedArgs;
+			call_out->func= NONULL(run(call_in.func, scope));
+
+			for (auto&& arg : call_in.args) {
+				call_out->args.emplace_back(NONULL(run(arg, scope))); 
+			}
+
+			routeCallArgs(	call_out->implicitArgs,
+							call_out->argRouting,
+							*call_out);
+
+			for (auto&& arg : call_in.implicitArgs) {
+				call_out->implicitArgs.emplace_back(NONULL(run(arg, scope))); 
+			}
+			nodeStack.pop();
+			return call_out;
 		}
-		for (auto&& arg : call_in.implicitArgs) {
-			call_out->implicitArgs.emplace_back(NONULL(run(arg))); 
-		}
-		nodeStack.pop();
-		return call_out;
 	}
 
-	AstNode* runSpecific(const LabelNode& label_in)
+	AstNode* runSpecific(const LabelNode& label_in, const TplScope& scope)
 	{
 		auto label_out= output.newNode<LabelNode>();
-		auto label_id= NONULL(run(label_in.identifier));
+		auto label_id= NONULL(run(label_in.identifier, scope));
 		assert(label_id->type == AstNodeType::identifier);
 		label_out->identifier= static_cast<IdentifierNode*>(label_id);
 		return label_out;
 	}
 
-	AstNode* runSpecific(const CommentNode& comment_in)
+	AstNode* runSpecific(const CommentNode& comment_in, const TplScope& scope)
 	{
 		auto comment_out= output.newNode<CommentNode>();
 		comment_out->text= comment_in.text;
 		return comment_out;
 	}
 
-	AstNode* runSpecific(const TplTypeNode& tpe)
+	AstNode* runSpecific(const TplTypeNode& tpl, const TplScope& scope)
 	{
-		/// @todo
-		for (auto&& node : tpe.params)
-			run(node);
+		assert(!scope.args.empty());
+		// Block after tpl decl takes care of creating correct concrete type
 		return nullptr;
 	}
 
 	template <AstNodeType nodeType, typename T>
 	struct CondRun {
-		static void eval(Processor& self, const AstNode& in, AstNode*& out)
-		{ if (in.type == nodeType) out= self.runSpecific(static_cast<const T&>(in)); }
+		static void eval(	Processor& self,
+							const AstNode& in,
+							AstNode*& out,
+							const TplScope& s)
+		{
+			if (in.type == nodeType)
+				out= self.runSpecific(static_cast<const T&>(in), s);
+		}
 	};
 
 };

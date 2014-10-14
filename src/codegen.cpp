@@ -358,11 +358,7 @@ private:
 
 	void specificMod(BlockNode& block)
 	{
-		if (block.tplType) {
-			// Concrete types from templates are created on demand
-			removeThisRequest= true;
-			return;
-		}
+		assert(!block.tplType);
 
 		ScopeType scope_type= ScopeType::plainScope;
 		if (block.structType)

@@ -751,112 +751,10 @@ private:
 
 	void tieSpecific(CallNode& call)
 	{
-		std::string call_name= "@todo str(call)";
-		auto routeArgsToParams=
-			[&call_name] (	std::vector<AstNode*>& implicit_args, // output
-							std::vector<std::string>& names,
-							const std::vector<VarDeclNode*>& params)
-			-> std::vector<int>
-		{
-			parseCheck(names.size() <= params.size(),
-					"Too many arguments in a call: " + call_name);
-			std::vector<int> routing; // routing[arg_i] == param_i
-			routing.resize(names.size(), -1);
-			std::vector<bool> routed_params;
-			routed_params.resize(params.size());
-
-			// Route named args
-			for (std::size_t i= 0; i < names.size(); ++i) {
-				if (names[i].empty())
-					continue;
-
-				bool found= false;
-				for (std::size_t param_i= 0; param_i < params.size(); ++param_i) {
-					if (	NONULL(NONULL(params[param_i])->identifier)->name
-							== names[i]) {
-						routing[i]= param_i;
-						routed_params[param_i]= true;
-						found= true;
-						break;
-					}
-				}
-				parseCheck(found, "Named param not found: " + names[i]);
-			}
-
-			// Route ordinary args
-			int next_param_i= 0;
-			for (std::size_t i= 0; i < names.size(); ++i) {
-				if (!names[i].empty())
-					continue;
-				
-				while (routed_params[next_param_i] == true)
-					++next_param_i;
-
-				assert(next_param_i < names.size());
-				assert(routing[i] == -1);
-				routing[i]= next_param_i;
-				routed_params[next_param_i]= true;
-				++next_param_i;
-			}
-
-			// Create and route implicit args
-			for (std::size_t i= 0; i < params.size(); ++i) {
-				assert(i < routed_params.size());
-				if (routed_params[i])
-					continue;
-
-				auto&& p= *NONULL(params[i]);
-				auto impl_value= p.value;
-				parseCheck(	impl_value != nullptr,
-							"Missing argument: " + p.identifier->name);
-
-				// Using same node as func decl
-				implicit_args.emplace_back(impl_value);
-
-				names.emplace_back("");
-				routing.emplace_back(i);
-				routed_params[i]= true;
-			}
-			
-			for (auto&& r : routing) {
-				assert(r != -1);
-				assert(r < names.size());
-			}
-
-			return routing;
-		};
-
 		tie(call.func);
 		for (auto&& arg : call.args) {
 			tie(arg); 
 		}
-
-		// Route call arguments to function/struct parameters
-		auto& traced= traceType(*NONULL(call.func));
-		if (traced.type == AstNodeType::funcType) {
-			// Ordinary function call
-			auto& func_type= static_cast<FuncTypeNode&>(traced);
-			call.argRouting=
-				routeArgsToParams(	call.implicitArgs,
-									call.namedArgs,
-									listToVec(func_type.params));
-		} else if (traced.type == AstNodeType::structType) {
-			// Constructor call
-			auto& struct_type= static_cast<StructTypeNode&>(traced);
-			call.argRouting=
-				routeArgsToParams(	call.implicitArgs,
-									call.namedArgs,
-									struct_type.varDecls);
-		} else if (traced.type == AstNodeType::tplType) {
-			// Template instantiation
-			auto& tpl_type= static_cast<TplTypeNode&>(traced);
-			call.argRouting=
-				routeArgsToParams(	call.implicitArgs,
-									call.namedArgs,
-									tpl_type.params);
-		}
-
-		assert(call.argRouting.size() == call.args.size() + call.implicitArgs.size());
 	}
 
 	void tieSpecific(LabelNode& label)
@@ -898,6 +796,8 @@ AstNode& traceValue(AstNode& node)
 		auto& id= static_cast<IdentifierNode&>(node);
 		if (id.boundTo)
 			return traceValue(*id.boundTo);
+		else
+			return id;
 	} else if (node.type == AstNodeType::varDecl) {
 		auto& var_decl= static_cast<VarDeclNode&>(node);
 		if (var_decl.value)
@@ -926,9 +826,147 @@ AstNode& traceType(AstNode& node)
 		auto& val= traceValue(*call.func);
 		assert(val.type == AstNodeType::block);
 		return val;
+	} else if (node.type == AstNodeType::block) {
+		auto& block= static_cast<BlockNode&>(node);
+		if (block.tplType)
+			return *block.tplType;
+		if (block.structType)
+			return *block.structType;
+		if (block.funcType)
+			return *block.funcType;
 	}
 
 	parseCheck(false, "Unable to trace type");
+}
+
+const IdentifierNode& traceBoundId(const IdentifierNode& id)
+{
+	if (!id.boundTo)
+		return id;
+
+	auto& bound= *id.boundTo;
+	if (bound.type == AstNodeType::identifier) {
+		return static_cast<IdentifierNode&>(bound);
+	} else if (bound.type == AstNodeType::varDecl) {
+		auto& decl= static_cast<VarDeclNode&>(bound);
+		return *NONULL(decl.identifier);
+	}
+
+	parseCheck(false, "Unable to trace bound id");
+}
+
+void routeCallArgs(	std::vector<AstNode*>& implicit,
+					std::vector<int>& routing,
+					const CallNode& call)
+
+{
+	assert(implicit.empty());
+	assert(routing.empty());
+	std::string call_name= "@todo str(complex call)";
+	if (NONULL(call.func)->type == AstNodeType::identifier) {
+		call_name= static_cast<IdentifierNode*>(call.func)->name;
+	}
+
+	auto routeArgsToParams=
+		[&call_name] (	std::vector<AstNode*>& implicit_args, // output
+						const std::vector<std::string>& names,
+						const std::vector<VarDeclNode*>& params)
+		-> std::vector<int>
+	{
+		parseCheck(names.size() <= params.size(),
+				"Too many arguments in a call: " + call_name);
+		std::vector<int> routing; // routing[arg_i] == param_i
+		routing.resize(names.size(), -1);
+		std::vector<bool> routed_params;
+		routed_params.resize(params.size());
+
+		// Route named args
+		for (std::size_t i= 0; i < names.size(); ++i) {
+			if (names[i].empty())
+				continue;
+
+			bool found= false;
+			for (std::size_t param_i= 0; param_i < params.size(); ++param_i) {
+				if (	NONULL(NONULL(params[param_i])->identifier)->name
+						== names[i]) {
+					routing[i]= param_i;
+					routed_params[param_i]= true;
+					found= true;
+					break;
+				}
+			}
+			parseCheck(found, "Named param not found: " + names[i]);
+		}
+
+		// Route ordinary args
+		int next_param_i= 0;
+		for (std::size_t i= 0; i < names.size(); ++i) {
+			if (!names[i].empty())
+				continue;
+			
+			while (routed_params[next_param_i] == true)
+				++next_param_i;
+
+			assert(next_param_i < names.size());
+			assert(routing[i] == -1);
+			routing[i]= next_param_i;
+			routed_params[next_param_i]= true;
+			++next_param_i;
+		}
+
+		// Create and route implicit args
+		for (std::size_t i= 0; i < params.size(); ++i) {
+			assert(i < routed_params.size());
+			if (routed_params[i])
+				continue;
+
+			auto&& p= *NONULL(params[i]);
+			auto impl_value= p.value;
+			parseCheck(	impl_value != nullptr,
+						"Missing argument: " + NONULL(p.identifier)->name);
+
+			// Using same node as func decl
+			implicit_args.emplace_back(impl_value);
+
+			routing.emplace_back(i);
+			routed_params[i]= true;
+		}
+		
+		for (auto&& r : routing) {
+			assert(r != -1);
+		}
+
+		return routing;
+	};
+
+	// Route call arguments to function/struct parameters
+	auto& traced= traceType(*NONULL(call.func));
+	if (traced.type == AstNodeType::funcType) {
+		// Ordinary function call
+		auto& func_type= static_cast<FuncTypeNode&>(traced);
+		routing=
+			routeArgsToParams(	implicit,
+								call.namedArgs,
+								listToVec(func_type.params));
+	} else if (traced.type == AstNodeType::structType) {
+		// Constructor call
+		auto& struct_type= static_cast<StructTypeNode&>(traced);
+		routing=
+			routeArgsToParams(	implicit,
+								call.namedArgs,
+								struct_type.varDecls);
+	} else if (traced.type == AstNodeType::tplType) {
+		// Template instantiation
+		auto& tpl_type= static_cast<TplTypeNode&>(traced);
+		routing=
+			routeArgsToParams(	implicit,
+								call.namedArgs,
+								tpl_type.params);
+	} else {
+		parseCheck(false, "Illegal call");
+	}
+
+	assert(routing.size() == call.args.size() + implicit.size());
 }
 
 AstContext genAst(const Tokens& tokens)

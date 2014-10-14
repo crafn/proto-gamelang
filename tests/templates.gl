@@ -1,10 +1,14 @@
-let Container := tpl[T: struct] -> struct
+let Pair := tpl[T: struct, U: struct] -> struct
 {
-	var begin : ?T = null;
+	var first : ?T = null;
+	var second : ?U = null;
 };
 
 let main := fn() -> int
 {
-	//Container[int]();
+	var integer : int = 10;
+	var character : char = 57;
+	Pair[.T= int, char](&integer, &character);
+
 	return 0;
 };

@@ -6,8 +6,9 @@ namespace gamelang
 
 class AstContext;
 
-/// Returns Ast which doesn't contain any meta-constructs
-/// @todo Returned Ast is kind of broken (missing at least id bindings)
+/// Computes all compile-time stuff
+/// Returns ast which doesn't contain any meta-constructs
+/// @todo Returned ast is kind of broken (missing at least id bindings)
 AstContext runMetaprograms(const AstContext& input);
 
 } // gamelang
