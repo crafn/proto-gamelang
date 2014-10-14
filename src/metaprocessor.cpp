@@ -6,6 +6,9 @@
 #include <stack>
 #include <tuple>
 
+// Debug
+#include <iostream>
+
 namespace gamelang
 {
 namespace
@@ -175,7 +178,7 @@ private:
 
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
-
+		
 		if (id_in.boundTo) {
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
 			if (bound_out)

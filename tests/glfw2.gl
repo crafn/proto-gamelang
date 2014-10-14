@@ -19,6 +19,13 @@ extern {
 	let glClear : fn(bits : int);
 }
 
+// libc
+extern {
+	/// @todo int64 -> size_t
+	let malloc: fn(size: int64) -> ?void;
+	let free: fn(ptr: ?void);
+}
+
 let main := fn() -> int
 {
 	if (glfwInit() == 0)

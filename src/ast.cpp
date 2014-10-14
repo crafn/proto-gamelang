@@ -686,6 +686,8 @@ private:
 
 	void tieSpecific(BlockNode& block)
 	{
+		if (block.condition)
+			tie(block.condition);
 		for (auto&& node : block.nodes) {
 			tie(node);
 		}
