@@ -11,7 +11,7 @@ This can be used like
 
 Declaring a template yielding functions
 
-	let print := tpl[T: struct] -> fn(v : T)
+	let print := tpl[T: struct] -> fn(v: T)
 	{ ... }
 
 Usage
