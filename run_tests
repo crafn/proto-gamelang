@@ -11,7 +11,8 @@ test_files= [
         "loops.gl",
         "methods.gl",
         "extern.gl",
-        "templates.gl",
+        "template_structs.gl",
+        "template_funcs.gl",
         "sizeof.gl"
 ]
 

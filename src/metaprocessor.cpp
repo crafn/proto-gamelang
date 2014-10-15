@@ -179,6 +179,7 @@ private:
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
 		
+		std::cout << "ID " << id_in.name << " bound " << id_in.boundTo << std::endl;
 		if (id_in.boundTo) {
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
 			if (bound_out)
@@ -203,15 +204,9 @@ private:
 
 		block_out->loop= block_in.loop;
 		block_out->external= block_in.external;
-		if (block_in.tplType) {
-			// Tpl struct type becomes concrete struct
-			assert(block_in.structType && "@todo Func tpl");
-			assert(!scope.args.empty());
-			assert(!block_out->structType);
-			auto result= NONULL(run(block_in.structType, scope));
-			assert(result->type == AstNodeType::structType);
-			block_out->structType= static_cast<StructTypeNode*>(result);
-		} else if (block_in.structType) {
+
+		// These are run also for tpl types!
+		if (block_in.structType) {
 			auto result= NONULL(run(block_in.structType, scope));
 			assert(result->type == AstNodeType::structType);
 			block_out->structType= static_cast<StructTypeNode*>(result);
@@ -380,8 +375,6 @@ private:
 			assert(tpl_decl.type == AstNodeType::varDecl);
 
 			{ // Instantiate template
-				assert(tpl_block.structType && "@todo tpl funcs");
-
 				std::vector<AstNode*> implicit_args;
 				std::vector<int> routing;
 				routeCallArgs(implicit_args, routing, call_in);

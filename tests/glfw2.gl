@@ -26,6 +26,12 @@ extern {
 	let free: fn(ptr: ?void);
 }
 
+let Vector := tpl[T: struct] -> struct
+{
+	var begin: ?T = null;
+	var size: int = 0;
+};
+
 let main := fn() -> int
 {
 	if (glfwInit() == 0)

@@ -261,14 +261,9 @@ struct CommentNode final : AstNode {
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
-enum class TplYieldType {
-	structure
-};
-
 /// `tpl [params]`
 struct TplTypeNode final : AstNode {
 	std::vector<VarDeclNode*> params;
-	TplYieldType yieldType= TplYieldType::structure;
 
 	TplTypeNode(): AstNode(AstNodeType::tplType) {}
 	std::vector<AstNode*> getSubNodes() const override

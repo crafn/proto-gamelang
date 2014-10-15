@@ -686,6 +686,8 @@ private:
 
 	void tieSpecific(BlockNode& block)
 	{
+		if (block.funcType)
+			tie(block.funcType);
 		if (block.condition)
 			tie(block.condition);
 		for (auto&& node : block.nodes) {

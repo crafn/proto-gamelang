@@ -1,0 +1,13 @@
+let foo := tpl[T: struct] -> fn (arg : T) -> T
+{
+	var temp : T = arg;
+	return temp;
+};
+
+let main := fn() -> int
+{
+	foo[int](7);
+	/// @todo Template argument expression support
+	//foo[?char](":o");
+	return 0;
+};
