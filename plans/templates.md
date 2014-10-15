@@ -22,6 +22,6 @@ Usage
 Named and default arguments should work with templates as well
 
 	let p := Pair[.B= int, ?char]("a", 2);
-	let euclidean := SpaceTime[];
+	let flat_space := SpaceTime[];
 	let black_hole := SpaceTime[.Metric = Schwarzschild];
 
