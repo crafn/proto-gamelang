@@ -313,6 +313,8 @@ const IdentifierNode& traceBoundId(const IdentifierNode& id);
 static IdentifierNode& traceBoundId(IdentifierNode& id)
 { return const_cast<IdentifierNode&>(static_cast<const IdentifierNode&>(id)); }
 
+std::string mangledName(AstNode& node);
+
 /// Finds implicit parameters and sets up routing table
 void routeCallArgs(	std::vector<AstNode*>& implicit,
 					std::vector<int>& routing,

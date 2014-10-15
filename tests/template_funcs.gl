@@ -7,7 +7,6 @@ let foo := tpl[T: struct] -> fn (arg : T) -> T
 let main := fn() -> int
 {
 	foo[int](7);
-	/// @todo Template argument expression support
-	//foo[?char](":o");
+	foo[?char](":o");
 	return 0;
 };

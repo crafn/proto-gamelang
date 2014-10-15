@@ -796,6 +796,9 @@ AstNode& traceValue(AstNode& node)
 			return *var_decl.value;
 		else
 			return *NONULL(var_decl.identifier); // extern decl
+	} else if (node.type == AstNodeType::uOp) {
+		/// @todo Could maybe trace further in cases like `*&id`
+		return node;
 	}
 
 	parseCheck(false, "Unable to trace value");
@@ -854,6 +857,32 @@ const IdentifierNode& traceBoundId(const IdentifierNode& id)
 	}
 
 	parseCheck(false, "Unable to trace bound id");
+}
+
+std::string mangledName(AstNode& node)
+{
+	if (node.type == AstNodeType::identifier){
+		auto& id= static_cast<IdentifierNode&>(node);
+		if (id.boundTo && 0) /// @todo aliases must use bound name
+			return mangledName(*id.boundTo);
+		else
+			return id.name;
+	} else if (node.type == AstNodeType::varDecl) {
+		return "@todo VarDecl";
+	} else if (node.type == AstNodeType::uOp){
+		auto& op= static_cast<UOpNode&>(node);
+		std::string prefix;
+		switch (op.opType) {
+			case UOpType::addrOf: prefix= "addrof"; break;
+			case UOpType::deref: prefix= "deref"; break;
+			case UOpType::pointer: prefix= "ptr"; break;
+			case UOpType::reference: prefix= "ref"; break;
+			default: assert(0 && "Unknown op in mangling");
+		}
+		return prefix + "_" + mangledName(*NONULL(op.target));
+	}
+
+	parseCheck(false, "Unable to mangle");
 }
 
 void routeCallArgs(	std::vector<AstNode*>& implicit,

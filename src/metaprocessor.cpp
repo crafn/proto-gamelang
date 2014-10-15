@@ -31,16 +31,19 @@ private:
 	using BlockNodeIt= std::list<AstNode*>::iterator;
 	struct TplArg {
 		const IdentifierNode* id; // Points to tpl id in input ctx, e.g. `T`
-		IdentifierNode* value; // Points to id in output ctx, e.g. `ConcreteType`
+		AstNode* value; // Points to node in output ctx, e.g. `^ConcreteType`
 
 		bool operator<(const TplArg& other) const
 		{
 			auto v= &traceValue(*value);
 			auto o_v= &traceValue(*other.value);
-			assert(	(v == o_v) == (value->name == other.value->name) &&
-					"Tracing bug");
-			return	std::tie(id, value->name) <
-					std::tie(other.id, other.value->name); }
+			/// @todo Value/type comparison should be done without mangling
+			///       Can't use pointers though, because e.g. two `?char`
+			///       nodes have equal contents but different addresses
+			auto v_str= mangledName(*value);
+			auto o_v_str= mangledName(*other.value);
+			return	std::tie(id, v_str) <
+					std::tie(other.id, o_v_str); }
 	};
 	struct TplScope {
 		/// Given arguments to tpl struct/function
@@ -54,7 +57,7 @@ private:
 			std::string ret;
 			for (auto&& a : args) {
 				ret += "_";
-				ret += NONULL(a.value)->name;
+				ret += mangledName(*NONULL(a.value));
 			}
 			return ret;
 		}
@@ -179,7 +182,6 @@ private:
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
 		
-		std::cout << "ID " << id_in.name << " bound " << id_in.boundTo << std::endl;
 		if (id_in.boundTo) {
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
 			if (bound_out)
@@ -270,7 +272,6 @@ private:
 
 	AstNode* runSpecific(const FuncTypeNode& func_in, const TplScope& scope)
 	{
-		/// @todo tpl function
 		auto func_out= output.newNode<FuncTypeNode>();
 		nodeStack.push(func_out);
 
@@ -387,15 +388,13 @@ private:
 				auto setNextArg= [&] (AstNode* arg_in)
 				{
 					assert(arg_in);
-					assert(arg_in->type == AstNodeType::identifier && "@todo tpl arg exprs");
 
 					auto arg_out= NONULL(run(arg_in, scope));
-					assert(arg_out->type == AstNodeType::identifier);
 
 					int param_i= routing[i];
 					assert(param_i >= 0 && param_i < sub_scope.args.size());
 					sub_scope.args[param_i].id= tpl_params[param_i]->identifier;
-					sub_scope.args[param_i].value= static_cast<IdentifierNode*>(arg_out);
+					sub_scope.args[param_i].value= arg_out;
 					++i;
 				};
 				for (auto&& arg : call_in.args)
