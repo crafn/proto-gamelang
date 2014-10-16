@@ -234,6 +234,7 @@ struct CallNode final : AstNode {
 	/// namedArgs[i] corresponds to args[i]
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;
+	/// @todo Rename, indexing[4] uses this flag also at parser stage
 	bool tplCall= false; /// true if call has form `foo[..]`
 	/// If true, the call has form `first_arg.foo(second_arg)`
 	bool methodLike= false;

@@ -375,10 +375,13 @@ private:
 
 	AstNode* runSpecific(const CallNode& call_in, const TplScope& scope)
 	{
-		if (call_in.tplCall) { // `vector[int]`
-			auto& traced= traceValue(*NONULL(call_in.func));
-			assert(traced.type == AstNodeType::block);
-			auto& tpl_block= static_cast<const BlockNode&>(traced);
+		AstNode* traced= nullptr;
+		if (call_in.tplCall) // Indexing uses tplCall also..!
+			traced= &traceValue(*NONULL(call_in.func));
+
+		// `vector[int]`
+		if (call_in.tplCall && traced && traced->type == AstNodeType::block) {
+			auto& tpl_block= static_cast<const BlockNode&>(*traced);
 			assert(tpl_block.tplType);
 			auto& tpl_params= tpl_block.tplType->params;
 			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
@@ -419,6 +422,8 @@ private:
 				tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
 				return NONULL(tpl_inst_decl->identifier);
 			}
+		} else if (call_in.tplCall && call_in.args.size() == 1) { // `indexing[2]`
+			assert(0 && "@todo Indexing");
 		} else { // `foo(bar)`
 			assert(!call_in.tplCall && "Shouldn't be creating templates");
 			auto call_out= output.newNode<CallNode>();

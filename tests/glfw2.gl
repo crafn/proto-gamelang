@@ -34,11 +34,30 @@ let Vector := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo Allow qualified types in template functions
+/// @todo indexing []
+/// @todo fix deref binding power
 /// @todo Proper name lookup
 /// @todo Template argument deduction
+/// @todo ++, <=, >= operators
+/// @todo for-loop
 let push := tpl[U: struct] -> fn(vec: ^Vector[U], elem: U)
 {
+	// Naive implementation
+	var new_data : ^U = malloc(sizeof(U)*(vec->size + 1));
+	var i : int = 0;
+	loop {
+		if (i + 1 > vec->size)
+			{ break; }
+		/// @todo Fix dereference binding power
+		*(new_data + i) = *(vec->data + i);
+		i = i + 1;
+	};
+	// Same here
+	*(new_data + vec->size) = elem;
+
+	free(vec->data);
+	vec->data = new_data;
+	vec->size = vec->size + 1;
 };
 
 let main := fn() -> int
@@ -50,7 +69,8 @@ let main := fn() -> int
 	glfwSetWindowTitle("gamelang");
 
 	var vec := Vector[int]();
-	push[int](&vec, 10);
+	vec.push[int](10);
+	vec.push[int](15);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
