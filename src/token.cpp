@@ -220,6 +220,7 @@ Tokens tokenize(const char* filepath)
 				++comment_end; // Skip linebreak
 				next= comment_end;
 				tok_begin= comment_end;
+				continue;
 			}
 
 			// String literals
