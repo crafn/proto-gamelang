@@ -819,6 +819,14 @@ AstNode& traceValue(AstNode& node)
 	} else if (node.type == AstNodeType::uOp) {
 		/// @todo Could maybe trace further in cases like `*&id`
 		return node;
+	} else if (node.type == AstNodeType::structType) {
+		return node;
+	} else if (node.type == AstNodeType::funcType) {
+		return node;
+	} else if (node.type == AstNodeType::builtinType) {
+		return node;
+	} else if (node.type == AstNodeType::block) {
+		return node;
 	}
 
 	parseCheck(false, "Unable to trace value");

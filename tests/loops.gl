@@ -11,12 +11,13 @@ let main := fn () -> int
 		foo();
 	}
 
-	i = 0;
-	loop_start:
-	i = i + 1;
-	if (i < 100) {
-		goto loop_start;
-	}
+	/// @todo Enable when automatic cleanup code works with goto
+	//i = 0;
+	//loop_start:
+	//i = i + 1;
+	//if (i < 100) {
+	//	goto loop_start;
+	//}
 
 	/// @todo `for`
 

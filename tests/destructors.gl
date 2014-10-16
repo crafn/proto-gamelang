@@ -11,5 +11,16 @@ let MemBlock := struct
 let main := fn() -> int
 {
 	var block := MemBlock();
+
+	loop {
+		var b2 := MemBlock();
+		if (b2.data)
+			{ break; }
+		else if (block.data)
+			{ continue; }
+		else
+			{ return 0; }
+	}
+
 	return 0;
 };

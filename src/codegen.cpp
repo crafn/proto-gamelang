@@ -13,6 +13,14 @@ namespace gamelang
 namespace  
 {
 
+template <typename A, typename B>
+void insert(A&& a, B&& b)
+{
+	for (auto&& item : b) {
+		a.insert(a.end(), item);
+	}
+}
+
 struct CCodeGen {
 	std::string code;
 
@@ -297,7 +305,8 @@ struct AstCModifier {
 	void mod()
 	{
 		AstNode* root= &context.getRootNode();
-		mod(root, ModScope{});
+		ModScope scope;
+		mod(root, scope);
 	}
 
 private:
@@ -306,20 +315,28 @@ private:
 		structure,
 		function,
 		conditional,
+		loop,
 		plainScope
 	};
 
 	struct ModScope {
+		ScopeType type= ScopeType::plainScope;
+
 		/// This will probably break soon
 		/// @todo Replace with ast modifying
 		std::map<IdentifierNode*, std::string> prefixes;
+
+		/// Nodes which should be inserted at scope exit
+		std::vector<AstNode*> cleanup;
+
+		ModScope* parent= nullptr;
 	};
 
 	AstContext& context;
-	std::stack<ScopeType> scopeStack;
 	std::map<AstNode*, std::string> mangledNames;
 	std::vector<AstNode*> globalInsertRequests;
-	std::vector<AstNode*> localInsertRequests;
+	/// Nodes inside block can request additional nodes inserted before them
+	std::vector<AstNode*> scopeInsertRequests;
 	bool removeThisRequest= false;
 
 	std::string clashPrevention() const { return "_CG_"; }
@@ -329,13 +346,13 @@ private:
 	{ return "dtor___" + type_name; }
 
 	template <typename T>
-	void mod(T*& node, const ModScope& scope)
+	void mod(T*& node, ModScope& scope)
 	{
 		assert(node);
 		chooseMod(*node, scope);
 	}
 
-	void chooseMod(AstNode& node, const ModScope& scope)
+	void chooseMod(AstNode& node, ModScope& scope)
 	{
 		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::identifier, IdentifierNode>::eval(*this, node, scope);
@@ -347,9 +364,8 @@ private:
 		CondMod<AstNodeType::call,          CallNode>::eval(*this, node, scope);
 	}
 
-	void specificMod(GlobalNode& global, const ModScope& scope)
+	void modSpecific(GlobalNode& global, ModScope& scope)
 	{
-		scopeStack.push(ScopeType::global);
 		for (auto it= global.nodes.begin(); it != global.nodes.end();) {
 			mod(*it, scope);
 
@@ -369,32 +385,38 @@ private:
 				++it;
 			}
 		}
-		scopeStack.pop();
 	}
 
-	void specificMod(IdentifierNode& id, const ModScope& scope)
+	void modSpecific(IdentifierNode& id, ModScope& scope)
 	{
-		auto it= scope.prefixes.find(&traceBoundId(id));
-		if (it != scope.prefixes.end()) {
-			id.name= it->second + id.name;
+		ModScope* p_scope= &scope;
+		while (p_scope) {
+			auto it= p_scope->prefixes.find(&traceBoundId(id));
+			if (it != p_scope->prefixes.end()) {
+				id.name= it->second + id.name;
+				break;
+			}
+			p_scope= p_scope->parent;
 		}
 	}
 
-	void specificMod(BlockNode& block, const ModScope& scope)
+	void modSpecific(BlockNode& block, ModScope& scope)
 	{
 		assert(!block.tplType);
 
-		ScopeType scope_type= ScopeType::plainScope;
+		ModScope block_scope;
 		if (block.structType)
-			scope_type= ScopeType::structure;
+			block_scope.type= ScopeType::structure;
 		else if (block.funcType)
-			scope_type= ScopeType::function;
+			block_scope.type= ScopeType::function;
 		else if (block.condition)
-			scope_type= ScopeType::conditional;
-		scopeStack.push(scope_type);
+			block_scope.type= ScopeType::conditional;
+		else if (block.loop)
+			block_scope.type= ScopeType::loop;
 
-		for (auto it= block.nodes.begin(); it != block.nodes.end();) {
-			mod(*it, scope);
+		block_scope.parent= &scope;
+		for (auto it= block.nodes.begin(); it != block.nodes.end(); ++it) {
+			mod(*it, block_scope);
 
 			if (removeThisRequest) {
 				it= block.nodes.erase(it);
@@ -402,18 +424,20 @@ private:
 				continue;
 			}
 
-			if (!localInsertRequests.empty()) {
-				for (auto&& req : localInsertRequests) {
-					block.nodes.insert(std::next(it), req);
-					++it;
+			if (!scopeInsertRequests.empty()) {
+				// Pre-insert
+				for (auto&& req : scopeInsertRequests) {
+					block.nodes.insert(it, req);
 				}
-				localInsertRequests.clear();
-			} else {
-				++it;
+				scopeInsertRequests.clear();
 			}
 		}
 
-		scopeStack.pop();
+		if (!block.structType) {
+			for (auto&& node : block_scope.cleanup) {
+				block.nodes.emplace_back(node);
+			}
+		}
 
 		if (block.structType) {
 			// Generate ctor for structure
@@ -485,7 +509,7 @@ private:
 			globalInsertRequests.emplace_back(ctor_func);
 		}
 
-		if (block.destructor) {
+		if (block.structType) {
 			// Generate dtor for block
 			assert(block.structType && "@todo Arbitrary block dtors");
 			auto dtor_func_type= context.newNode<FuncTypeNode>();
@@ -516,7 +540,8 @@ private:
 			self_id->boundTo= self_var;
 			dtor_func_type->params.emplace_back(self_var);
 
-			ModScope sub_scope= scope;
+			ModScope dtor_scope;
+			dtor_scope.parent= &scope;
 			for (VarDeclNode* decl : block.structType->varDecls) {
 				auto access_op= context.newNode<BiOpNode>();
 				access_op->opType= BiOpType::dot;
@@ -524,12 +549,18 @@ private:
 				access_op->rhs= decl->identifier;
 				// `member` -> `self->member`
 				assert(decl->identifier->boundTo == decl);
-				sub_scope.prefixes[decl->identifier]= self_id->name + "->";
+				dtor_scope.prefixes[decl->identifier]= self_id->name + "->";
 			}
-			for (auto&& node : block.destructor->nodes) {
-				mod(node, sub_scope);
-				dtor_block->nodes.emplace_back(node);
+			if (block.destructor) {
+				for (auto&& node : block.destructor->nodes) {
+					mod(node, dtor_scope);
+					dtor_block->nodes.emplace_back(node); // Custom dtor code
+				}
 			}
+			for (auto&& node : block_scope.cleanup) {
+				dtor_block->nodes.emplace_back(node); // Dtors of members
+			}
+			
 
 			globalInsertRequests.emplace_back(
 					context.newNode<EndStatementNode>());
@@ -537,7 +568,7 @@ private:
 		}
 	}
 
-	void specificMod(VarDeclNode& var, const ModScope& scope)
+	void modSpecific(VarDeclNode& var, ModScope& scope)
 	{
 		assert(var.valueType);
 		if (var.valueType->type == AstNodeType::builtinType) {
@@ -545,8 +576,32 @@ private:
 			return;
 		}
 
+		// Add cleanup code for locals and parameters
+		bool is_initialized= var.value || var.param;
+		if (is_initialized && var.valueType->type == AstNodeType::block) {
+			auto ptr_to_val= context.newNode<UOpNode>();
+			ptr_to_val->opType= UOpType::addrOf;
+			ptr_to_val->target= var.identifier;
+
+			auto block_bound_id= static_cast<BlockNode*>(var.valueType)->boundTo;
+			auto type_name= traceBoundId(*NONULL(block_bound_id)).name;
+
+			auto dtor_call_id= context.newNode<IdentifierNode>();
+			dtor_call_id->name= dtorName(type_name);
+
+			auto dtor_call= context.newNode<CallNode>();
+			dtor_call->func= dtor_call_id;
+			dtor_call->args.emplace_back(ptr_to_val);
+
+			scope.cleanup.emplace(	scope.cleanup.begin(),
+									context.newNode<EndStatementNode>());
+			scope.cleanup.emplace(	scope.cleanup.begin(),
+									dtor_call);
+		}
+
 		if (var.valueType->type == AstNodeType::block) {
 			// Replace in-place type with identifier
+			/// @todo This should maybe be done in gen
 			var.valueType= static_cast<BlockNode*>(var.valueType)->boundTo;
 			assert(var.valueType);
 		}
@@ -558,24 +613,49 @@ private:
 
 	}
 
-	void specificMod(UOpNode& op, const ModScope& scope)
+	void modSpecific(UOpNode& op, ModScope& scope)
 	{
 		mod(op.target, scope);
 	}
 
-	void specificMod(BiOpNode& op, const ModScope& scope)
+	void modSpecific(BiOpNode& op, ModScope& scope)
 	{
 		mod(op.lhs, scope);
 		mod(op.rhs, scope);
 	}
 	
-	void specificMod(CtrlStatementNode& ctrl, const ModScope& scope)
+	void modSpecific(CtrlStatementNode& ctrl, ModScope& scope)
 	{
+		auto addCleanupNodes= [this, &scope]
+		(ScopeType top_scope) -> void {
+			auto cur_scope= &scope;
+			while (cur_scope){
+				insert(scopeInsertRequests, cur_scope->cleanup);
+				if (cur_scope->type == top_scope)
+					break;
+				cur_scope= cur_scope->parent;
+			}
+		};
+
+		switch(ctrl.statementType) {
+			case CtrlStatementType::return_:
+				addCleanupNodes(ScopeType::function);
+			break;
+			case CtrlStatementType::break_:
+			case CtrlStatementType::continue_:
+				addCleanupNodes(ScopeType::loop);
+			break;
+			case CtrlStatementType::goto_:
+				assert(0 && "@todo Cleanup code insertion with goto");
+			break;
+			default:;	
+		}	
+
 		if (ctrl.value)
 			mod(ctrl.value, scope);
 	}
 
-	void specificMod(CallNode& call, const ModScope& scope)
+	void modSpecific(CallNode& call, ModScope& scope)
 	{
 		// Resolve argument routing
 		std::vector<AstNode*> new_args;
@@ -606,7 +686,7 @@ private:
 		if (func.type == AstNodeType::block) {
 			auto& func_block= static_cast<BlockNode&>(func);
 			if (func_block.structType) {
-				// Swap `Type(..)` to compiler-generated ctor call
+				// Swap `Type(..)` with compiler-generated ctor call
 				auto ctor_id= context.newNode<IdentifierNode>();
 				ctor_id->name= ctorName(mangledNames[&func_block]);
 				call.func= ctor_id;
@@ -616,8 +696,8 @@ private:
 
 	template <AstNodeType nodeType, typename T>
 	struct CondMod {
-		static void eval(AstCModifier& self, AstNode& node, const ModScope& scope)
-		{ if (node.type == nodeType) self.specificMod(static_cast<T&>(node), scope); }
+		static void eval(AstCModifier& self, AstNode& node, ModScope& scope)
+		{ if (node.type == nodeType) self.modSpecific(static_cast<T&>(node), scope); }
 	};
 };
 
