@@ -8,7 +8,7 @@ class AstContext;
 
 /// Computes all compile-time stuff
 /// Returns ast which doesn't contain any meta-constructs
-/// @todo Every alias should be replaced with the thing aliased
+/// @todo Every alias should be replaced with the thing aliased, maybe
 AstContext runMetaprograms(const AstContext& input);
 
 } // gamelang

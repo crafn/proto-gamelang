@@ -577,13 +577,14 @@ private:
 		}
 
 		// Add cleanup code for locals and parameters
+		auto& traced_type= traceValue(*var.valueType);
 		bool is_initialized= var.value || var.param;
-		if (is_initialized && var.valueType->type == AstNodeType::block) {
+		if (is_initialized && traced_type.type == AstNodeType::block) {
 			auto ptr_to_val= context.newNode<UOpNode>();
 			ptr_to_val->opType= UOpType::addrOf;
 			ptr_to_val->target= var.identifier;
 
-			auto block_bound_id= static_cast<BlockNode*>(var.valueType)->boundTo;
+			auto block_bound_id= static_cast<BlockNode&>(traced_type).boundTo;
 			auto type_name= traceBoundId(*NONULL(block_bound_id)).name;
 
 			auto dtor_call_id= context.newNode<IdentifierNode>();

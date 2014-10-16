@@ -310,9 +310,10 @@ AstNode& traceValue(AstNode& expr);
 AstNode& traceType(AstNode& expr);
 
 /// e.g. id -> id.boundTo->identifier
-const IdentifierNode& traceBoundId(const IdentifierNode& id);
-static IdentifierNode& traceBoundId(IdentifierNode& id)
-{ return const_cast<IdentifierNode&>(traceBoundId(static_cast<const IdentifierNode&>(id))); }
+///      block -> block.boundTo
+const IdentifierNode& traceBoundId(const AstNode& node);
+static IdentifierNode& traceBoundId(AstNode& node)
+{ return const_cast<IdentifierNode&>(traceBoundId(static_cast<const AstNode&>(node))); }
 
 std::string mangledName(AstNode& node);
 

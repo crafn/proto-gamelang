@@ -56,7 +56,8 @@ enum class Bp : int {
 	block,
 	blockBind,
 	parens,
-	prefix
+	prefix,
+	index
 };
 
 Bp tokenLbp(TokenType t)
@@ -74,7 +75,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::closeParen:   return Bp::endParens;
 		case TokenType::openBlock:    return Bp::block;
 		case TokenType::closeBlock:   return Bp::endParens;
-		case TokenType::openSquare:   return Bp::parens;
+		case TokenType::openSquare:   return Bp::index;
 		case TokenType::closeSquare:  return Bp::endParens;
 		case TokenType::openAngle:    return Bp::parens;
 		case TokenType::closeAngle:   return Bp::endParens;
@@ -871,20 +872,27 @@ AstNode& traceType(AstNode& node)
 	parseCheck(false, "Unable to trace type");
 }
 
-const IdentifierNode& traceBoundId(const IdentifierNode& id)
+const IdentifierNode& traceBoundId(const AstNode& node)
 {
-	if (!id.boundTo)
-		return id;
+	if (node.type == AstNodeType::identifier) {
+		auto& id= static_cast<const IdentifierNode&>(node);
+		if (!id.boundTo)
+			return id;
 
-	auto& bound= *id.boundTo;
-	if (bound.type == AstNodeType::identifier) {
-		return static_cast<IdentifierNode&>(bound);
-	} else if (bound.type == AstNodeType::varDecl) {
-		auto& decl= static_cast<VarDeclNode&>(bound);
-		return *NONULL(decl.identifier);
-	} else if (bound.type == AstNodeType::label) {
-		auto& label= static_cast<LabelNode&>(bound);
-		return *NONULL(label.identifier);
+		auto& bound= *id.boundTo;
+		if (bound.type == AstNodeType::identifier) {
+			return static_cast<IdentifierNode&>(bound);
+		} else if (bound.type == AstNodeType::varDecl) {
+			auto& decl= static_cast<VarDeclNode&>(bound);
+			return *NONULL(decl.identifier);
+		} else if (bound.type == AstNodeType::label) {
+			auto& label= static_cast<LabelNode&>(bound);
+			return *NONULL(label.identifier);
+		}
+	} else if (node.type == AstNodeType::block) {
+		auto& block= static_cast<const BlockNode&>(node);
+		if (block.boundTo)
+			return traceBoundId(*block.boundTo);
 	}
 
 	parseCheck(false, "Unable to trace bound id");

@@ -271,8 +271,6 @@ private:
 		if (var_out->valueType == nullptr) {
 			assert(var_out->value && "Can't have both null type and null value");
 			var_out->valueType= &traceType(*var_out->value);
-		} else {
-			var_out->valueType= &traceValue(*var_out->valueType);
 		}
 
 		assert(var_out->valueType != nullptr);

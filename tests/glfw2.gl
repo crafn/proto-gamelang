@@ -34,11 +34,10 @@ let Vector := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo Run destructors
-/// @todo Proper name lookup
 /// @todo Allow qualified types in template functions
+/// @todo Proper name lookup
 /// @todo Template argument deduction
-let push := tpl[U: struct] -> fn(vec: Vector[U], elem: U)
+let push := tpl[U: struct] -> fn(vec: ^Vector[U], elem: U)
 {
 };
 
@@ -51,7 +50,7 @@ let main := fn() -> int
 	glfwSetWindowTitle("gamelang");
 
 	var vec := Vector[int]();
-	push[int](vec, 10);
+	push[int](&vec, 10);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
