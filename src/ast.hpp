@@ -96,6 +96,7 @@ struct BlockNode final : AstNode {
 	AstNode* funcType= nullptr;
 	TplTypeNode* tplType= nullptr; /// Used if block is a template
 	AstNode* condition= nullptr;
+	BlockNode* destructor= nullptr;
 	std::list<AstNode*> nodes;
 
 	BlockNode(): AstNode(AstNodeType::block) {}
@@ -311,7 +312,7 @@ AstNode& traceType(AstNode& expr);
 /// e.g. id -> id.boundTo->identifier
 const IdentifierNode& traceBoundId(const IdentifierNode& id);
 static IdentifierNode& traceBoundId(IdentifierNode& id)
-{ return const_cast<IdentifierNode&>(static_cast<const IdentifierNode&>(id)); }
+{ return const_cast<IdentifierNode&>(traceBoundId(static_cast<const IdentifierNode&>(id))); }
 
 std::string mangledName(AstNode& node);
 

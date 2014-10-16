@@ -60,6 +60,8 @@ private:
 		emit("#include <stdint.h>\n");
 		emit("typedef int32_t int32;\n");
 		emit("typedef int64_t int64;\n");
+		emit("typedef unsigned char byte;\n");
+		emit("typedef unsigned int uint;\n");
 		/// @todo Rest
 		for (const AstNode* node : global.nodes) {
 			gen(*NONULL(node));
@@ -74,10 +76,7 @@ private:
 
 	void gen(const IdentifierNode& type)
 	{
-		if (type.name == "uint")
-			emit("unsigned int");
-		else
-			emit(type.name);
+		emit(type.name);
 	}
 
 	void gen(const BlockNode& block)
@@ -158,7 +157,10 @@ private:
 		assert(node.type == AstNodeType::funcType);
 		auto&& func= static_cast<const FuncTypeNode&>(node);
 
-		gen(*NONULL(func.returnType));
+		if (func.returnType)
+			gen(*func.returnType);
+		else
+			emit("void");
 		emit(" " + name);
 
 		emit("(");
@@ -295,7 +297,7 @@ struct AstCModifier {
 	void mod()
 	{
 		AstNode* root= &context.getRootNode();
-		mod(root);
+		mod(root, ModScope{});
 	}
 
 private:
@@ -305,6 +307,12 @@ private:
 		function,
 		conditional,
 		plainScope
+	};
+
+	struct ModScope {
+		/// This will probably break soon
+		/// @todo Replace with ast modifying
+		std::map<IdentifierNode*, std::string> prefixes;
 	};
 
 	AstContext& context;
@@ -317,30 +325,33 @@ private:
 	std::string clashPrevention() const { return "_CG_"; }
 	std::string ctorName(std::string type_name) const
 	{ return "ctor___" + type_name; }
+	std::string dtorName(std::string type_name) const
+	{ return "dtor___" + type_name; }
 
 	template <typename T>
-	void mod(T*& node)
+	void mod(T*& node, const ModScope& scope)
 	{
 		assert(node);
-		chooseMod(*node);
+		chooseMod(*node, scope);
 	}
 
-	void chooseMod(AstNode& node)
+	void chooseMod(AstNode& node, const ModScope& scope)
 	{
-		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node);
-		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node);
-		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node);
-		CondMod<AstNodeType::uOp,        UOpNode>::eval(*this, node);
-		CondMod<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
-		CondMod<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
-		CondMod<AstNodeType::call,          CallNode>::eval(*this, node);
+		CondMod<AstNodeType::global,     GlobalNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::identifier, IdentifierNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::uOp,        UOpNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::biOp,          BiOpNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::call,          CallNode>::eval(*this, node, scope);
 	}
 
-	void specificMod(GlobalNode& global)
+	void specificMod(GlobalNode& global, const ModScope& scope)
 	{
 		scopeStack.push(ScopeType::global);
 		for (auto it= global.nodes.begin(); it != global.nodes.end();) {
-			mod(*it);
+			mod(*it, scope);
 
 			if (removeThisRequest) {
 				it= global.nodes.erase(it);
@@ -361,7 +372,15 @@ private:
 		scopeStack.pop();
 	}
 
-	void specificMod(BlockNode& block)
+	void specificMod(IdentifierNode& id, const ModScope& scope)
+	{
+		auto it= scope.prefixes.find(&traceBoundId(id));
+		if (it != scope.prefixes.end()) {
+			id.name= it->second + id.name;
+		}
+	}
+
+	void specificMod(BlockNode& block, const ModScope& scope)
 	{
 		assert(!block.tplType);
 
@@ -375,7 +394,7 @@ private:
 		scopeStack.push(scope_type);
 
 		for (auto it= block.nodes.begin(); it != block.nodes.end();) {
-			mod(*it);
+			mod(*it, scope);
 
 			if (removeThisRequest) {
 				it= block.nodes.erase(it);
@@ -398,9 +417,6 @@ private:
 
 		if (block.structType) {
 			// Generate ctor for structure
-			assert(block.structType->type == AstNodeType::structType);
-			auto struct_type= static_cast<StructTypeNode*>(block.structType);
-
 			auto ctor_func_type= context.newNode<FuncTypeNode>();
 			ctor_func_type->returnType= block.boundTo;
 
@@ -419,7 +435,6 @@ private:
 			self_id->name= clashPrevention() + "self";
 
 			auto self_var= context.newNode<VarDeclNode>();
-			self_var->param= true;
 			self_var->valueType= block.boundTo;
 			self_var->constant= false;
 			self_var->identifier= self_id;
@@ -427,10 +442,10 @@ private:
 			ctor_block->nodes.emplace_back(self_var);
 			ctor_block->nodes.emplace_back(context.newNode<EndStatementNode>());
 
-			for (VarDeclNode* decl : struct_type->varDecls) {
+			for (VarDeclNode* decl : block.structType->varDecls) {
 				auto member_param_id= context.newNode<IdentifierNode>();
 				member_param_id->name= decl->identifier->name;
-				
+
 				auto member_param= context.newNode<VarDeclNode>();
 				member_param->param= true;
 				member_param->valueType= decl->valueType;
@@ -469,9 +484,60 @@ private:
 					context.newNode<EndStatementNode>());
 			globalInsertRequests.emplace_back(ctor_func);
 		}
+
+		if (block.destructor) {
+			// Generate dtor for block
+			assert(block.structType && "@todo Arbitrary block dtors");
+			auto dtor_func_type= context.newNode<FuncTypeNode>();
+
+			auto dtor_block= context.newNode<BlockNode>();
+			dtor_block->funcType= dtor_func_type;
+
+			auto func_id= context.newNode<IdentifierNode>();
+			func_id->name= dtorName(NONULL(block.boundTo)->name);
+
+			auto dtor_func= context.newNode<VarDeclNode>();
+			dtor_func->identifier= func_id;
+			dtor_func->valueType= dtor_func_type;
+			dtor_func->value= dtor_block;
+
+			auto self_id= context.newNode<IdentifierNode>();
+			self_id->name= clashPrevention() + "self";
+
+			auto ptr_to_self= context.newNode<UOpNode>();
+			ptr_to_self->opType= UOpType::pointer;
+			ptr_to_self->target= block.boundTo;
+
+			auto self_var= context.newNode<VarDeclNode>();
+			self_var->param= true;
+			self_var->valueType= ptr_to_self;
+			self_var->constant= false;
+			self_var->identifier= self_id;
+			self_id->boundTo= self_var;
+			dtor_func_type->params.emplace_back(self_var);
+
+			ModScope sub_scope= scope;
+			for (VarDeclNode* decl : block.structType->varDecls) {
+				auto access_op= context.newNode<BiOpNode>();
+				access_op->opType= BiOpType::dot;
+				access_op->lhs= self_id;
+				access_op->rhs= decl->identifier;
+				// `member` -> `self->member`
+				assert(decl->identifier->boundTo == decl);
+				sub_scope.prefixes[decl->identifier]= self_id->name + "->";
+			}
+			for (auto&& node : block.destructor->nodes) {
+				mod(node, sub_scope);
+				dtor_block->nodes.emplace_back(node);
+			}
+
+			globalInsertRequests.emplace_back(
+					context.newNode<EndStatementNode>());
+			globalInsertRequests.emplace_back(dtor_func);
+		}
 	}
 
-	void specificMod(VarDeclNode& var)
+	void specificMod(VarDeclNode& var, const ModScope& scope)
 	{
 		assert(var.valueType);
 		if (var.valueType->type == AstNodeType::builtinType) {
@@ -487,29 +553,29 @@ private:
 
 		if (var.value) {
 			mangledNames[var.value]= NONULL(var.identifier)->name;
-			mod(var.value);
+			mod(var.value, scope);
 		}
 
 	}
 
-	void specificMod(UOpNode& op)
+	void specificMod(UOpNode& op, const ModScope& scope)
 	{
-		mod(op.target);
+		mod(op.target, scope);
 	}
 
-	void specificMod(BiOpNode& op)
+	void specificMod(BiOpNode& op, const ModScope& scope)
 	{
-		mod(op.lhs);
-		mod(op.rhs);
+		mod(op.lhs, scope);
+		mod(op.rhs, scope);
 	}
 	
-	void specificMod(CtrlStatementNode& ctrl)
+	void specificMod(CtrlStatementNode& ctrl, const ModScope& scope)
 	{
 		if (ctrl.value)
-			mod(ctrl.value);
+			mod(ctrl.value, scope);
 	}
 
-	void specificMod(CallNode& call)
+	void specificMod(CallNode& call, const ModScope& scope)
 	{
 		// Resolve argument routing
 		std::vector<AstNode*> new_args;
@@ -533,7 +599,7 @@ private:
 		call.namedArgs.clear(); // No named args in C
 
 		for (auto&& arg : call.args)
-			mod(arg);
+			mod(arg, scope);
 
 		// Handle ctor calls
 		auto& func= traceValue(*NONULL(call.func));
@@ -550,8 +616,8 @@ private:
 
 	template <AstNodeType nodeType, typename T>
 	struct CondMod {
-		static void eval(AstCModifier& self, AstNode& node)
-		{ if (node.type == nodeType) self.specificMod(static_cast<T&>(node)); }
+		static void eval(AstCModifier& self, AstNode& node, const ModScope& scope)
+		{ if (node.type == nodeType) self.specificMod(static_cast<T&>(node), scope); }
 	};
 };
 

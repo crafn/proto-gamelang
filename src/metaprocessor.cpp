@@ -224,6 +224,12 @@ private:
 				block_out->nodes.emplace_back(result);
 		}
 
+		if (block_in.destructor) {
+			auto result= run(block_in.destructor, scope);
+			assert(result && result->type == AstNodeType::block);
+			block_out->destructor= static_cast<BlockNode*>(result);
+		}
+
 		nodeStack.pop();
 		return block_out;
 	}

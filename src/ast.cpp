@@ -54,6 +54,7 @@ enum class Bp : int {
 	prod,
 	member,
 	block,
+	blockBind,
 	parens,
 	prefix
 };
@@ -91,6 +92,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::ref:          return Bp::prefix;
 		case TokenType::hat:          return Bp::prefix;
 		case TokenType::question:     return Bp::prefix;
+		case TokenType::tilde:        return Bp::blockBind;
 		case TokenType::comment:      return Bp::comment;
 		case TokenType::kwVar:        return Bp::keyword;
 		case TokenType::kwLet:        return Bp::keyword;
@@ -131,7 +133,8 @@ struct Parser {
 			"false",
 			"float",
 			"double",
-			"char"
+			"char",
+			"byte"
 		};
 		for (auto& name : builtin_names) {
 			auto builtin_type= context.newNode<BuiltinTypeNode>();
@@ -468,6 +471,18 @@ private:
 		return op;
 	}
 
+	AstNode* parseDestructor(AstNode& left)
+	{
+		parseCheck(	left.type == AstNodeType::block,
+					"Only blocks can have destructors");
+		BlockNode* left_block= static_cast<BlockNode*>(&left);
+		match(TokenType::openBlock);
+		while (left_block->destructor) // Allow chaining destructors
+			left_block= left_block->destructor;
+		left_block->destructor= NONULL(parseBlock());
+		return &left;
+	}
+
 	AstNode* nud(It it)
 	{
 		switch (it->type) {
@@ -576,6 +591,8 @@ private:
 				return parseCall(left);
 			case TokenType::openSquare:
 				return parseSquare(left);
+			case TokenType::tilde:
+				return parseDestructor(left);
 			default: // Assuming BiOp
 				{
 					auto op_type= it->type;
@@ -693,6 +710,8 @@ private:
 		for (auto&& node : block.nodes) {
 			tie(node);
 		}
+		if (block.destructor)
+			tie(block.destructor);
 	}
 
 	void tieSpecific(VarDeclNode& var)
@@ -701,7 +720,8 @@ private:
 				"Variable identifiers should be bound by definition");
 
 		// Loose identifiers can be bound to `var`
-		idTargets[NONULL(var.identifier)->name]= &var;
+		if (idTargets.find(NONULL(var.identifier)->name) == idTargets.end())
+			idTargets[NONULL(var.identifier)->name]= &var;
 
 		tie(var.valueType);
 		if (var.value)
@@ -854,6 +874,9 @@ const IdentifierNode& traceBoundId(const IdentifierNode& id)
 	} else if (bound.type == AstNodeType::varDecl) {
 		auto& decl= static_cast<VarDeclNode&>(bound);
 		return *NONULL(decl.identifier);
+	} else if (bound.type == AstNodeType::label) {
+		auto& label= static_cast<LabelNode&>(bound);
+		return *NONULL(label.identifier);
 	}
 
 	parseCheck(false, "Unable to trace bound id");

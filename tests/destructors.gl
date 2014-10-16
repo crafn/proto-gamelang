@@ -1,0 +1,15 @@
+let alloc := fn(size: int) -> ^byte { null };
+let dealloc := fn(p: ?byte) { };
+
+let MemBlock := struct
+{
+	var data : ^byte = alloc(95);
+} ~ {
+	dealloc(data);
+};
+
+let main := fn() -> int
+{
+	var block := MemBlock();
+	return 0;
+};

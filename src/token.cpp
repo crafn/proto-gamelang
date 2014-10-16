@@ -74,6 +74,7 @@ TokenType singleCharTokenType(char ch)
 		case '&': return TokenType::ref;
 		case '^': return TokenType::hat;
 		case '?': return TokenType::question;
+		case '~': return TokenType::tilde;
 		case '\'': return TokenType::squote;
 		default: return TokenType::unknown;
 	}
