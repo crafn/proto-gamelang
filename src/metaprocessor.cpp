@@ -48,9 +48,10 @@ private:
 	struct TplScope {
 		/// Given arguments to tpl struct/function
 		std::vector<TplArg> args;
+		const TplScope* parent= nullptr;
 
 		bool operator<(const TplScope& other) const
-		{ return args < other.args; }
+		{ return std::tie(args, parent) < std::tie(other.args, parent); }
 
 		std::string str() const
 		{
@@ -148,6 +149,8 @@ private:
 			if (out_it != node_map.end())
 				return out_it->second;
 		}
+		if (scope.parent) // Search also from parent scopes
+			return findOutNodeOf(in, *scope.parent);
 		return nullptr;
 	}
 
@@ -388,6 +391,7 @@ private:
 
 				// Set up scope for template args
 				TplScope sub_scope;
+				sub_scope.parent= &scope;
 				sub_scope.args.resize(	call_in.args.size() +
 										implicit_args.size());
 				std::size_t i= 0;

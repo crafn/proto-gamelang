@@ -28,8 +28,18 @@ extern {
 
 let Vector := tpl[T: struct] -> struct
 {
-	var begin: ?T = null;
 	var size: int = 0;
+	var data: ?T = null;
+} ~ {
+	free(data);
+};
+
+/// @todo Run destructors
+/// @todo Proper name lookup
+/// @todo Allow qualified types in template functions
+/// @todo Template argument deduction
+let push := tpl[U: struct] -> fn(vec: Vector[U], elem: U)
+{
 };
 
 let main := fn() -> int
@@ -39,6 +49,9 @@ let main := fn() -> int
 
 	glfwOpenWindow(400, 300, 0,0,0,0,0,0, GLFW_WINDOW);
 	glfwSetWindowTitle("gamelang");
+
+	var vec := Vector[int]();
+	push[int](vec, 10);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
