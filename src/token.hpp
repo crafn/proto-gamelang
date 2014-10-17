@@ -24,6 +24,8 @@ enum class TokenType {
 	closeSquare, // ]
 	openAngle, // <.
 	closeAngle, // .>
+	rdiv, // `\`
+	closeTpl, // `/`
 	rightArrow, // ->
 	equals, // ==
 	nequals, // !=
@@ -86,6 +88,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::sub: return "sub";
 		case TokenType::mul: return "mul";
 		case TokenType::div: return "div";
+		case TokenType::rdiv: return "rdiv";
 		case TokenType::mod: return "mod";
 		case TokenType::dot: return "dot";
 		case TokenType::ref: return "ref";
@@ -141,6 +144,7 @@ static const char* str(TokenType type)
 		case TokenType::sub: return "-";
 		case TokenType::mul: return "*";
 		case TokenType::div: return "/";
+		case TokenType::rdiv: return "\\";
 		case TokenType::mod: return "%";
 		case TokenType::dot: return ".";
 		case TokenType::ref: return "&";
