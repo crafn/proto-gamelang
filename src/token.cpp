@@ -92,9 +92,11 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 	if (ch1 == '/' && ch2 == '/')
 		return TokenType::comment;
 	if (ch1 == '<' && ch2 == '.')
-		return TokenType::openAngle;
+		return TokenType::leftInsert;
 	if (ch1 == '.' && ch2 == '>')
-		return TokenType::closeAngle;
+		return TokenType::rightInsert;
+	if (ch1 == '=' && ch2 == '>')
+		return TokenType::rdArrow;
 
 	return TokenType::unknown;
 }

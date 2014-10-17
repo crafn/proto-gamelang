@@ -57,6 +57,7 @@ enum class Bp : int {
 	typedecl,
 	sum,
 	prod,
+	insert,
 	block,
 	blockBind,
 	parens,
@@ -82,8 +83,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::closeBlock:   return Bp::endParens;
 		case TokenType::openSquare:   return Bp::index;
 		case TokenType::closeSquare:  return Bp::endParens;
-		case TokenType::openAngle:    return Bp::parens;
-		case TokenType::closeAngle:   return Bp::endParens;
+		case TokenType::rightInsert:  return Bp::insert;
 		case TokenType::rightArrow:   return Bp::member;
 		case TokenType::equals:       return Bp::comp;
 		case TokenType::nequals:      return Bp::comp;
@@ -95,7 +95,7 @@ Bp tokenLbp(TokenType t)
 		case TokenType::div:          return Bp::prod;
 		case TokenType::mod:          return Bp::prod;
 		case TokenType::dot:          return Bp::member;
-		case TokenType::ref:          return Bp::prefix;
+		case TokenType::ref:          return Bp::statement;
 		case TokenType::hat:          return Bp::prefix;
 		case TokenType::question:     return Bp::prefix;
 		case TokenType::tilde:        return Bp::blockBind;
@@ -127,6 +127,7 @@ Bp tokenRbp(TokenType t)
 		case TokenType::sub:
 		case TokenType::mul:
 		case TokenType::div:
+		case TokenType::ref:
 			return Bp::prefix;
 		default:;
 	}
@@ -765,8 +766,22 @@ private:
 
 	void tieSpecific(BiOpNode& op)
 	{
-		tie(op.lhs);
-		tie(op.rhs);
+		/// @todo Shouldn't be in tie phase, because destroys information
+		if (op.opType == BiOpType::rightInsert) {
+			parseCheck(	op.rhs->type == AstNodeType::call,
+						"=> must be followed by a call");
+			// "Method" call
+			auto call= static_cast<CallNode*>(op.rhs);
+			call->args.emplace(call->args.begin(), op.lhs);
+			call->namedArgs.emplace(call->namedArgs.begin(), "");
+			call->methodLike= true;
+			tie(call);
+
+			substitution= call;
+		} else {
+			tie(op.lhs);
+			tie(op.rhs);
+		}
 	}
 
 	void tieSpecific(CtrlStatementNode& ret)
@@ -777,23 +792,6 @@ private:
 
 	void tieSpecific(CallNode& call)
 	{
-		assert(call.func);
-
-		if (!call.tplCall && call.func->type == AstNodeType::biOp) {
-			auto& op= static_cast<BiOpNode&>(*call.func);
-			if (	op.opType == BiOpType::dot ||
-					op.opType == BiOpType::rightArrow) {
-				// "Method" call
-				auto ref= context.newNode<UOpNode>();
-				ref->opType= UOpType::addrOf;
-				ref->target= op.lhs;
-				call.args.emplace(call.args.begin(), ref);
-				call.namedArgs.emplace(call.namedArgs.begin(), "");
-				call.methodLike= true;
-				call.func= op.rhs;
-			}
-		}
-
 		tie(call.func);
 		for (auto&& arg : call.args) {
 			tie(arg); 

@@ -22,11 +22,12 @@ enum class TokenType {
 	closeBlock, // }
 	openSquare, // [
 	closeSquare, // ]
-	openAngle, // <.
-	closeAngle, // .>
+	leftInsert, // <.
+	rightInsert, // .>
 	rdiv, // `\`
 	closeTpl, // `/`
 	rightArrow, // ->
+	rdArrow, // =>
 	equals, // ==
 	nequals, // !=
 	less, // <
@@ -77,9 +78,10 @@ static const char* enumStr(TokenType type)
 		case TokenType::closeBlock: return "closeBlock";
 		case TokenType::openSquare: return "openSquare";
 		case TokenType::closeSquare: return "closeSquare";
-		case TokenType::openAngle: return "openAngle";
-		case TokenType::closeAngle: return "closeAngle";
+		case TokenType::leftInsert: return "leftInsert";
+		case TokenType::rightInsert: return "rightInsert";
 		case TokenType::rightArrow: return "rightArrow";
+		case TokenType::rdArrow: return "rdArrow";
 		case TokenType::equals: return "equals";
 		case TokenType::nequals: return "nequals";
 		case TokenType::less: return "less";
@@ -133,9 +135,10 @@ static const char* str(TokenType type)
 		case TokenType::closeBlock: return "}";
 		case TokenType::openSquare: return "[";
 		case TokenType::closeSquare: return "]";
-		case TokenType::openAngle: return "<.";
-		case TokenType::closeAngle: return ".>";
+		case TokenType::leftInsert: return "<.";
+		case TokenType::rightInsert: return ".>";
 		case TokenType::rightArrow: return "->";
+		case TokenType::rdArrow: return "=>";
 		case TokenType::equals: return "==";
 		case TokenType::nequals: return "!=";
 		case TokenType::less: return "<";
