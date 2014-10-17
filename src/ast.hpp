@@ -31,6 +31,8 @@ std::list<T> vecToList(const std::vector<T>& l)
 	return v;
 }
 
+void parseCheck(bool expr, const std::string& msg);
+
 enum class AstNodeType {
 	global,
 	endStatement,

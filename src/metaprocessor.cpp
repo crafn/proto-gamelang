@@ -422,8 +422,20 @@ private:
 				tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
 				return NONULL(tpl_inst_decl->identifier);
 			}
-		} else if (call_in.tplCall && call_in.args.size() == 1) { // `indexing[2]`
-			assert(0 && "@todo Indexing");
+		} else if (call_in.tplCall) { // `indexing[2]`
+			parseCheck(	call_in.args.size() == 1,
+						"Indexing op [] should have exactly one argument");
+
+			// Transform `arr[5]` to `*(arr + 5)`
+			auto sum= output.newNode<BiOpNode>();
+			sum->opType= BiOpType::add;
+			sum->lhs= run(call_in.func, scope);
+			sum->rhs= run(call_in.args.front(), scope);
+
+			auto deref_op= output.newNode<UOpNode>();
+			deref_op->opType= UOpType::deref;
+			deref_op->target= sum;	
+			return deref_op;
 		} else { // `foo(bar)`
 			assert(!call_in.tplCall && "Shouldn't be creating templates");
 			auto call_out= output.newNode<CallNode>();

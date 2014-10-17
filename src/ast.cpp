@@ -29,6 +29,8 @@ struct LogIndentGuard {
 LogIndentGuard logIndentGuard()
 { return LogIndentGuard{logIndent}; }
 
+} // anonymous
+
 void parseCheck(bool expr, const std::string& msg)
 {
 	if (!expr)
@@ -37,7 +39,10 @@ void parseCheck(bool expr, const std::string& msg)
 	assert(expr);
 }
 
-/// Binding power
+namespace
+{
+
+/// Pratt parser binding power
 enum class Bp : int {
 	eof= 0,
 	comment,
@@ -46,18 +51,18 @@ enum class Bp : int {
 	literal,
 	name,
 	comma,
-	statement,
+	statement, /// @todo This should probably be almost first
 	assignment,
 	comp,
 	typedecl,
 	sum,
 	prod,
-	member,
 	block,
 	blockBind,
 	parens,
 	prefix,
-	index
+	index,
+	member
 };
 
 Bp tokenLbp(TokenType t)
@@ -112,6 +117,20 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwSizeof:     return Bp::keyword;
 		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
+}
+
+Bp tokenRbp(TokenType t)
+{
+	switch (t)
+	{
+		case TokenType::add:
+		case TokenType::sub:
+		case TokenType::mul:
+		case TokenType::div:
+			return Bp::prefix;
+		default:;
+	}
+	return tokenLbp(t);
 }
 
 /// Transforms tokens to an abstract syntax tree
@@ -313,7 +332,7 @@ private:
 	/// `{ code(); }`
 	BlockNode* parseBlock()
 	{
-		log("parseBlock");
+		log("block");
 		auto&& log_indent= logIndentGuard();
 
 		auto block= newNode<BlockNode>();
@@ -345,7 +364,8 @@ private:
 
 	UOpNode* parseUOp(TokenType t)
 	{
-		auto op_lbp= tokenLbp(t);
+		log(std::string("uOp ") + str(t));
+		auto op_rbp= tokenRbp(t);
 		UOpType op_type;
 		switch (t) {
 			case TokenType::ref:
@@ -368,13 +388,14 @@ private:
 
 		auto op= newNode<UOpNode>();
 		op->opType= op_type;
-		op->target= parseExpr(op_lbp);
+		op->target= parseExpr(op_rbp);
 		return op;
 	}
 
 	/// `foo(1, "asd")`
 	CallNode* parseCall(AstNode& func, TokenType closing= TokenType::closeParen)
 	{
+		log("call");
 		auto call= newNode<CallNode>();
 		call->func= &func;
 		while (token->type != closing) {
@@ -596,6 +617,7 @@ private:
 				return parseDestructor(left);
 			default: // Assuming BiOp
 				{
+					log("biOp " + it->text);
 					auto op_type= it->type;
 					auto op_lbp= tokenLbp(it->type);
 					auto op= newNode<BiOpNode>();
@@ -743,26 +765,8 @@ private:
 
 	void tieSpecific(BiOpNode& op)
 	{
-		if (	op.opType == BiOpType::dot &&
-				NONULL(op.rhs)->type == AstNodeType::call) {
-			// "Method" call
-			auto call= static_cast<CallNode*>(op.rhs);
-			auto ref= context.newNode<UOpNode>();
-			ref->opType= UOpType::addrOf;
-			ref->target= op.lhs;
-			AstNode* arg= op.lhs;
-			call->args.emplace(call->args.begin(), ref);
-			call->namedArgs.emplace(call->namedArgs.begin(), "");
-			call->methodLike= true;
-
-			tie(call);
-
-			// Replace op with call
-			substitution= call;
-		} else {
-			tie(op.lhs);
-			tie(op.rhs);
-		}
+		tie(op.lhs);
+		tie(op.rhs);
 	}
 
 	void tieSpecific(CtrlStatementNode& ret)
@@ -773,6 +777,23 @@ private:
 
 	void tieSpecific(CallNode& call)
 	{
+		assert(call.func);
+
+		if (!call.tplCall && call.func->type == AstNodeType::biOp) {
+			auto& op= static_cast<BiOpNode&>(*call.func);
+			if (	op.opType == BiOpType::dot ||
+					op.opType == BiOpType::rightArrow) {
+				// "Method" call
+				auto ref= context.newNode<UOpNode>();
+				ref->opType= UOpType::addrOf;
+				ref->target= op.lhs;
+				call.args.emplace(call.args.begin(), ref);
+				call.namedArgs.emplace(call.namedArgs.begin(), "");
+				call.methodLike= true;
+				call.func= op.rhs;
+			}
+		}
+
 		tie(call.func);
 		for (auto&& arg : call.args) {
 			tie(arg); 
@@ -828,6 +849,12 @@ AstNode& traceValue(AstNode& node)
 		return node;
 	} else if (node.type == AstNodeType::block) {
 		return node;
+	} else if (node.type == AstNodeType::biOp) {
+		auto& op= static_cast<BiOpNode&>(node);
+		if (	op.opType == BiOpType::dot ||
+				op.opType == BiOpType::rightArrow) {
+			return traceValue(*NONULL(op.rhs));
+		}
 	}
 
 	parseCheck(false, "Unable to trace value");
@@ -867,6 +894,12 @@ AstNode& traceType(AstNode& node)
 			return *block.structType;
 		if (block.funcType)
 			return *block.funcType;
+	} else if (node.type == AstNodeType::biOp) {
+		auto& op= static_cast<BiOpNode&>(node);
+		if (	op.opType == BiOpType::dot ||
+				op.opType == BiOpType::rightArrow) {
+			return traceType(*NONULL(op.rhs));
+		}
 	}
 
 	parseCheck(false, "Unable to trace type");

@@ -34,7 +34,6 @@ let Vector := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo indexing []
 /// @todo fix deref binding power
 /// @todo Proper name lookup
 /// @todo Template argument deduction
@@ -48,12 +47,10 @@ let push := tpl[U: struct] -> fn(vec: ^Vector[U], elem: U)
 	loop {
 		if (i + 1 > vec->size)
 			{ break; }
-		/// @todo Fix dereference binding power
-		*(new_data + i) = *(vec->data + i);
+		new_data[i]= vec->data[i];
 		i = i + 1;
-	};
-	// Same here
-	*(new_data + vec->size) = elem;
+	}
+	new_data[vec->size] = elem;
 
 	free(vec->data);
 	vec->data = new_data;
@@ -69,15 +66,15 @@ let main := fn() -> int
 	glfwSetWindowTitle("gamelang");
 
 	var vec := Vector[int]();
-	vec.push[int](10);
-	vec.push[int](15);
+	vec.(push[int])(10);
+	vec.(push[int])(16);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
 		glClear(GL_COLOR_BUFFER_BIT);
 		glfwSwapBuffers();
 		glfwSleep(0.001);
-	}
+	};
 
 	glfwTerminate();
 	return 0;
