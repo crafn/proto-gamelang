@@ -237,7 +237,7 @@ struct CallNode final : AstNode {
 	/// namedArgs[i].empty() == ordinary argument
 	std::vector<std::string> namedArgs;
 	/// @todo Rename, indexing[4] uses this flag also at parser stage
-	bool tplCall= false; /// true if call has form `foo[..]`
+	bool squareCall= false; /// true if call has form `foo[..]`
 
 	// Metaprocessor sets
 

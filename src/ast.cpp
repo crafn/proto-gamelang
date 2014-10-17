@@ -482,7 +482,7 @@ private:
 	AstNode* parseSquare(AstNode& left)
 	{
 		auto call= parseCall(left, TokenType::closeSquare);
-		call->tplCall= true;
+		call->squareCall= true;
 		return call;
 	}
 
@@ -871,7 +871,7 @@ AstNode& traceType(AstNode& node)
 		auto& call= static_cast<CallNode&>(node);
 		assert(call.func);
 		auto& val= traceValue(*call.func);
-		if (call.tplCall) {
+		if (call.squareCall) {
 			assert(val.type == AstNodeType::block);
 			return val;
 		} else if (val.type == AstNodeType::block) {

@@ -376,11 +376,11 @@ private:
 	AstNode* runSpecific(const CallNode& call_in, const TplScope& scope)
 	{
 		AstNode* traced= nullptr;
-		if (call_in.tplCall) // Indexing uses tplCall also..!
+		if (call_in.squareCall) // Indexing uses squareCall also..!
 			traced= &traceValue(*NONULL(call_in.func));
 
 		// `vector[int]`
-		if (call_in.tplCall && traced && traced->type == AstNodeType::block) {
+		if (call_in.squareCall && traced && traced->type == AstNodeType::block) {
 			auto& tpl_block= static_cast<const BlockNode&>(*traced);
 			assert(tpl_block.tplType);
 			auto& tpl_params= tpl_block.tplType->params;
@@ -422,7 +422,7 @@ private:
 				tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
 				return NONULL(tpl_inst_decl->identifier);
 			}
-		} else if (call_in.tplCall) { // `indexing[2]`
+		} else if (call_in.squareCall) { // `indexing[2]`
 			parseCheck(	call_in.args.size() == 1,
 						"Indexing op [] should have exactly one argument");
 
@@ -437,7 +437,7 @@ private:
 			deref_op->target= sum;	
 			return deref_op;
 		} else { // `foo(bar)`
-			assert(!call_in.tplCall && "Shouldn't be creating templates");
+			assert(!call_in.squareCall && "Shouldn't be creating templates");
 			auto call_out= output.newNode<CallNode>();
 			nodeStack.push(call_out);
 
