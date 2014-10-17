@@ -774,7 +774,6 @@ private:
 			auto call= static_cast<CallNode*>(op.rhs);
 			call->args.emplace(call->args.begin(), op.lhs);
 			call->namedArgs.emplace(call->namedArgs.begin(), "");
-			call->methodLike= true;
 			tie(call);
 
 			substitution= call;

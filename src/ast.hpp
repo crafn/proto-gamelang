@@ -238,8 +238,6 @@ struct CallNode final : AstNode {
 	std::vector<std::string> namedArgs;
 	/// @todo Rename, indexing[4] uses this flag also at parser stage
 	bool tplCall= false; /// true if call has form `foo[..]`
-	/// If true, the call has form `first_arg.foo(second_arg)`
-	bool methodLike= false;
 
 	// Metaprocessor sets
 
