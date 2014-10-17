@@ -6,6 +6,7 @@ let hash = fn (o: ^Object) -> int { 1 };
 let foo = fn (a: int, b: int) { };
 
 let ihash = fn (i : int) -> int { i };
+let pair_ihash = fn (a : int, b : int) -> int { a + b };
 
 let main = fn () -> int
 {
@@ -17,6 +18,7 @@ let main = fn () -> int
 	foo(&other.>hash(), &obj.>hash());
 	
 	50.>ihash();
+	&obj.>hash().>ihash().>pair_ihash(5);
 
 	return 0;
 }
