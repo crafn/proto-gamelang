@@ -360,10 +360,11 @@ static IdentifierNode& traceBoundId(AstNode& node, BoundIdDist dist)
 
 std::string mangledName(AstNode& node);
 
-/// Finds implicit parameters and sets up routing table
+/// Finds implicit parameters and sets up a routing table
 void routeCallArgs(	std::vector<AstNode*>& implicit,
 					std::vector<int>& routing,
-					const CallNode& call);
+					const AstNode& func,
+					const std::vector<std::string>& arg_names);
 
 /// Returns arguments in resolved order
 std::vector<AstNode*> resolveRouting(	const std::vector<AstNode*>& args,

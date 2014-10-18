@@ -956,6 +956,9 @@ const AstNode& traceType(const AstNode& node)
 			return *block.structType;
 		if (block.funcType)
 			return *block.funcType;
+	} else if (node.type == AstNodeType::uOp) {
+		/// @todo Could maybe trace further in cases like `*&id`
+		return node;
 	} else if (node.type == AstNodeType::biOp) {
 		auto& op= static_cast<const BiOpNode&>(node);
 		if (	op.opType == BiOpType::dot ||
@@ -1029,14 +1032,15 @@ std::string mangledName(AstNode& node)
 
 void routeCallArgs(	std::vector<AstNode*>& implicit,
 					std::vector<int>& routing,
-					const CallNode& call)
+					const AstNode& func,
+					const std::vector<std::string>& arg_names)
 
 {
 	assert(implicit.empty());
 	assert(routing.empty());
 	std::string call_name= "@todo str(complex call)";
-	if (NONULL(call.func)->type == AstNodeType::identifier) {
-		call_name= static_cast<IdentifierNode*>(call.func)->name;
+	if (func.type == AstNodeType::identifier) {
+		call_name= static_cast<const IdentifierNode&>(func).name;
 	}
 
 	auto routeArgsToParams=
@@ -1112,33 +1116,38 @@ void routeCallArgs(	std::vector<AstNode*>& implicit,
 	};
 
 	// Route call arguments to function/struct parameters
-	auto& traced= traceType(*NONULL(call.func));
-	if (traced.type == AstNodeType::funcType) {
+
+	const AstNode* traced= nullptr;
+	if (	func.type == AstNodeType::funcType ||
+			func.type == AstNodeType::structType ||
+			func.type == AstNodeType::tplType)
+		traced= &func;
+	else
+		traced= &traceType(func);
+	if (traced->type == AstNodeType::funcType) {
 		// Ordinary function call
-		auto& func_type= static_cast<FuncTypeNode&>(traced);
+		auto& func_type= static_cast<const FuncTypeNode&>(*traced);
 		routing=
 			routeArgsToParams(	implicit,
-								call.namedArgs,
+								arg_names,
 								listToVec(func_type.params));
-	} else if (traced.type == AstNodeType::structType) {
+	} else if (traced->type == AstNodeType::structType) {
 		// Constructor call
-		auto& struct_type= static_cast<StructTypeNode&>(traced);
+		auto& struct_type= static_cast<const StructTypeNode&>(*traced);
 		routing=
 			routeArgsToParams(	implicit,
-								call.namedArgs,
+								arg_names,
 								struct_type.varDecls);
-	} else if (traced.type == AstNodeType::tplType) {
+	} else if (traced->type == AstNodeType::tplType) {
 		// Template instantiation
-		auto& tpl_type= static_cast<TplTypeNode&>(traced);
+		auto& tpl_type= static_cast<const TplTypeNode&>(*traced);
 		routing=
 			routeArgsToParams(	implicit,
-								call.namedArgs,
+								arg_names,
 								tpl_type.params);
 	} else {
 		parseCheck(false, "Illegal call");
 	}
-
-	assert(routing.size() == call.args.size() + implicit.size());
 }
 
 std::vector<AstNode*> resolveRouting(	const std::vector<AstNode*>& args,

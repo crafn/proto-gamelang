@@ -609,8 +609,8 @@ private:
 		if (var.valueType->type == AstNodeType::block) {
 			// Replace in-place type with identifier
 			var.valueType= &traceBoundId(*var.valueType, BoundIdDist::furthest);
-			std::cout << "BLOCK MOD " << var.identifier->name << "\n";
 		}
+		mod(var.valueType, scope);
 
 		if (var.value) {
 			mangledNames[var.value]= NONULL(var.identifier)->name;
@@ -630,6 +630,10 @@ private:
 
 	void modSpecific(UOpNode& op, ModScope& scope)
 	{
+		if (op.target->type == AstNodeType::block) {
+			auto& block= *NONULL(static_cast<BlockNode*>(op.target));
+			op.target= block.boundTo;
+		}
 		mod(op.target, scope);
 	}
 

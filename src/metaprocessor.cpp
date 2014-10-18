@@ -276,7 +276,6 @@ private:
 		}
 
 		assert(var_out->valueType != nullptr);
-		assert(var_out->identifier->name != "Array___Vec2i");
 
 		nodeStack.pop();
 		return var_out;
@@ -391,15 +390,16 @@ private:
 				AstNode* deduced_type= nullptr;
 
 				// Scan func_params until tpl_params[i] is found
-				// Then search func_args[i] for the concrete type
+				// Then search corresponding func_args for the concrete type
 				/// @todo Deeper search, supporting stuff like Array[^Array[?T]]
-				for (auto&& func_p : func_params) {
+				for (std::size_t k= 0; k < func_params.size(); ++k) {
+					auto& func_p= func_params[k];
+					if (func_p->valueType->type != AstNodeType::identifier)
+						continue;
 					auto& p_id= traceBoundId(*func_p->valueType, BoundIdDist::nearest);
-					//std::cout << "PID " << p_id.name << "\n";
-					//std::cout << "TPL " << tpl_params[i]->identifier->name << "\n";
 					/// @todo Pointer check should be enough
 					if ( p_id.name == tpl_params[i]->identifier->name) {
-						deduced_type= &traceType(*NONULL(func_args[i]));
+						deduced_type= &traceType(*NONULL(func_args[k]));
 						break;
 					}
 				}
@@ -407,6 +407,7 @@ private:
 				parseCheck(deduced_type, "Couldn't deduce tpl argument");
 				tpl_args.emplace_back(deduced_type);
 			}
+			assert(tpl_args.size() == tpl_params.size());
 			return tpl_args;
 		};
 
@@ -418,6 +419,7 @@ private:
 		{
 			auto& tpl_params= tpl_block.tplType->params;
 			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
+			assert(tpl_params.size() == tpl_args.size());
 
 			// Set up scope for template args
 			TplScope sub_scope;
@@ -453,7 +455,10 @@ private:
 				// Ordinary tpl call
 				std::vector<AstNode*> implicit_tpl_args;
 				std::vector<int> tpl_routing;
-				routeCallArgs(implicit_tpl_args, tpl_routing, call_in);
+				routeCallArgs(	implicit_tpl_args,
+								tpl_routing,
+								*call_in.func,
+								call_in.namedArgs);
 				auto tpl_args_in=
 					resolveRouting(
 							joined(listToVec(call_in.args), implicit_tpl_args),
@@ -469,7 +474,10 @@ private:
 
 				std::vector<AstNode*> implicit_args;
 				std::vector<int> routing;
-				routeCallArgs(implicit_args, routing, call_in);
+				routeCallArgs(	implicit_args,
+								routing,
+								func_type,
+								call_in.namedArgs);
 				std::vector<AstNode*> all_args=
 					resolveRouting(	joined(listToVec(call_in.args), implicit_args),
 									routing);
@@ -489,7 +497,8 @@ private:
 					fn_call->args.emplace_back(NONULL(run(arg, scope))); 
 				routeCallArgs(	fn_call->implicitArgs,
 								fn_call->argRouting,
-								*fn_call);
+								*fn_call->func,
+								fn_call->namedArgs);
 				for (auto&& arg : call_in.implicitArgs)
 					fn_call->implicitArgs.emplace_back(NONULL(run(arg, scope))); 
 				return fn_call;
@@ -521,7 +530,8 @@ private:
 
 			routeCallArgs(	call_out->implicitArgs,
 							call_out->argRouting,
-							*call_out);
+							*call_out->func,
+							call_out->namedArgs);
 
 			for (auto&& arg : call_in.implicitArgs)
 				call_out->implicitArgs.emplace_back(NONULL(run(arg, scope))); 

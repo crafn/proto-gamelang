@@ -42,7 +42,6 @@ let Array := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo Template argument deduction
 /// @todo Proper name lookup
 /// @todo ++, <=, >= operators
 /// @todo for-loop
@@ -77,8 +76,8 @@ let main := fn() -> int
 	var v2 := Vec2i(.x= 1);
 
 	var vec := Array[Vec2i]();
-	&vec.>push[Vec2i](v);
-	&vec.>push[Vec2i](v2);
+	push(&vec, v);
+	&vec.>push(v2);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {

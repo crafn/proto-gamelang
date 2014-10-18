@@ -1,5 +1,7 @@
-let foo := tpl[T: struct] -> fn(v: T) { };
-let bar := tpl[U: struct, V: struct] -> fn(a: U, b: V) { };
+let foo := tpl[T: struct] -> fn(v: T)
+{ var temp: T; };
+let bar := tpl[U: struct, V: struct] -> fn(a: U, b: V)
+{ var temp2: V; };
 
 let SomeType := struct { };
 let main := fn() -> int
