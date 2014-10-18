@@ -378,52 +378,121 @@ private:
 
 	AstNode* runSpecific(const CallNode& call_in, const TplScope& scope)
 	{
-		AstNode* traced= nullptr;
-		if (call_in.squareCall) // Indexing uses squareCall also..!
-			traced= &traceValue(*NONULL(call_in.func));
+		auto deduceTplArgs= []
+		(	const std::vector<VarDeclNode*>& tpl_params,
+			const std::vector<VarDeclNode*>& func_params,
+			const std::vector<AstNode*>& func_args)
+		-> std::vector<AstNode*>
+		{
+			assert(func_params.size() == func_args.size());
 
-		// `vector[int]`
-		if (call_in.squareCall && traced && traced->type == AstNodeType::block) {
-			auto& tpl_block= static_cast<const BlockNode&>(*traced);
+			std::vector<AstNode*> tpl_args;
+			for (std::size_t i= 0; i < tpl_params.size(); ++i) {
+				AstNode* deduced_type= nullptr;
+
+				// Scan func_params until tpl_params[i] is found
+				// Then search func_args[i] for the concrete type
+				/// @todo Deeper search, supporting stuff like Array[^Array[?T]]
+				for (auto&& func_p : func_params) {
+					auto& p_id= traceBoundId(*func_p->valueType, BoundIdDist::nearest);
+					//std::cout << "PID " << p_id.name << "\n";
+					//std::cout << "TPL " << tpl_params[i]->identifier->name << "\n";
+					/// @todo Pointer check should be enough
+					if ( p_id.name == tpl_params[i]->identifier->name) {
+						deduced_type= &traceType(*NONULL(func_args[i]));
+						break;
+					}
+				}
+
+				parseCheck(deduced_type, "Couldn't deduce tpl argument");
+				tpl_args.emplace_back(deduced_type);
+			}
+			return tpl_args;
+		};
+
+		auto instantiateTpl= [this]
+		(	const BlockNode& tpl_block,
+			const std::vector<AstNode*>& tpl_args,
+			const TplScope& scope)
+		-> IdentifierNode*
+		{
+			auto& tpl_params= tpl_block.tplType->params;
+			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
+
+			// Set up scope for template args
+			TplScope sub_scope;
+			sub_scope.parent= &scope;
+			sub_scope.args.resize(tpl_args.size());
+
+			assert(tpl_args.size() == tpl_params.size());
+			for (std::size_t i= 0; i < tpl_args.size(); ++i) {
+				sub_scope.args[i].id= tpl_params[i]->identifier;
+				sub_scope.args[i].value= NONULL(run(tpl_args[i], scope));
+			}
+
+			auto tpl_inst= NONULL(run(&tpl_decl, sub_scope));
+			assert(tpl_inst->type == AstNodeType::varDecl);
+			auto tpl_inst_decl= static_cast<VarDeclNode*>(tpl_inst);
+
+			tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
+
+			return NONULL(tpl_inst_decl->identifier);
+		};
+
+		auto& traced_type= traceType(*call_in.func);
+		// `vector[int]` or `tplCall(123)` == `tplCall[int](123)`
+		if (traced_type.type == AstNodeType::tplType) {
+			AstNode& traced= traceValue(*NONULL(call_in.func));
+			auto& tpl_block= static_cast<const BlockNode&>(traced);
 			assert(tpl_block.tplType);
 			auto& tpl_params= tpl_block.tplType->params;
 			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
 			assert(tpl_decl.type == AstNodeType::varDecl);
 
-			{ // Instantiate template
+			if (call_in.squareCall) { // `vector[int]`
+				// Ordinary tpl call
+				std::vector<AstNode*> implicit_tpl_args;
+				std::vector<int> tpl_routing;
+				routeCallArgs(implicit_tpl_args, tpl_routing, call_in);
+				auto tpl_args_in=
+					resolveRouting(
+							joined(listToVec(call_in.args), implicit_tpl_args),
+							tpl_routing);		
+				return instantiateTpl(tpl_block, tpl_args_in, scope);
+			} else { // `print(10)` == `print[int](10)`
+				// Call includes implicit tpl call (tpl deduction)
+
+				assert(tpl_block.funcType);
+				auto& func_type_node= traceValue(*tpl_block.funcType);
+				assert(func_type_node.type == AstNodeType::funcType);
+				auto& func_type= static_cast<FuncTypeNode&>(func_type_node);
+
 				std::vector<AstNode*> implicit_args;
 				std::vector<int> routing;
 				routeCallArgs(implicit_args, routing, call_in);
+				std::vector<AstNode*> all_args=
+					resolveRouting(	joined(listToVec(call_in.args), implicit_args),
+									routing);
 
-				// Set up scope for template args
-				TplScope sub_scope;
-				sub_scope.parent= &scope;
-				sub_scope.args.resize(	call_in.args.size() +
-										implicit_args.size());
-				std::size_t i= 0;
-				auto setNextArg= [&] (AstNode* arg_in)
-				{
-					assert(arg_in);
+				auto tpl_args_in=
+					deduceTplArgs(	tpl_params,
+									listToVec(func_type.params),
+									all_args);
 
-					auto arg_out= NONULL(run(arg_in, scope));
-
-					int param_i= routing[i];
-					assert(param_i >= 0 && param_i < sub_scope.args.size());
-					sub_scope.args[param_i].id= tpl_params[param_i]->identifier;
-					sub_scope.args[param_i].value= arg_out;
-					++i;
-				};
+				auto tpl_instance_id= instantiateTpl(tpl_block, tpl_args_in, scope);
+				
+				// Template has been created but not the actual fn call
+				auto fn_call= output.newNode<CallNode>();
+				fn_call->namedArgs= call_in.namedArgs;
+				fn_call->func= tpl_instance_id;
 				for (auto&& arg : call_in.args)
-					setNextArg(arg);
-				for (auto&& arg : implicit_args)
-					setNextArg(arg);
-
-				auto tpl_inst= NONULL(run(&tpl_decl, sub_scope));
-				assert(tpl_inst->type == AstNodeType::varDecl);
-				auto tpl_inst_decl= static_cast<VarDeclNode*>(tpl_inst);
-
-				tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
-				return NONULL(tpl_inst_decl->identifier);
+					fn_call->args.emplace_back(NONULL(run(arg, scope))); 
+				routeCallArgs(	fn_call->implicitArgs,
+								fn_call->argRouting,
+								*fn_call);
+				for (auto&& arg : call_in.implicitArgs)
+					fn_call->implicitArgs.emplace_back(NONULL(run(arg, scope))); 
+				return fn_call;
 			}
 		} else if (call_in.squareCall) { // `indexing[2]`
 			parseCheck(	call_in.args.size() == 1,
@@ -440,24 +509,23 @@ private:
 			deref_op->target= sum;	
 			return deref_op;
 		} else { // `foo(bar)`
-			assert(!call_in.squareCall && "Shouldn't be creating templates");
+			assert(!call_in.squareCall);
 			auto call_out= output.newNode<CallNode>();
 			nodeStack.push(call_out);
 
 			call_out->namedArgs= call_in.namedArgs;
 			call_out->func= NONULL(run(call_in.func, scope));
 
-			for (auto&& arg : call_in.args) {
+			for (auto&& arg : call_in.args)
 				call_out->args.emplace_back(NONULL(run(arg, scope))); 
-			}
 
 			routeCallArgs(	call_out->implicitArgs,
 							call_out->argRouting,
 							*call_out);
 
-			for (auto&& arg : call_in.implicitArgs) {
+			for (auto&& arg : call_in.implicitArgs)
 				call_out->implicitArgs.emplace_back(NONULL(run(arg, scope))); 
-			}
+
 			nodeStack.pop();
 			return call_out;
 		}

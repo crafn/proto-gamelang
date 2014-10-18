@@ -13,7 +13,7 @@ let Pair := tpl[T: struct, U: struct] -> struct
 };
 
 let Pairi := Pair[int, int];
-let Pairf := Pair[float, float];
+let Pairf := Pair[f32, f32];
 
 /// @todo Allow template aliases
 //let TemplateAlias := tpl[T : struct] -> Pair[int, T];
@@ -25,7 +25,7 @@ let main := fn() -> int
 	tree1 = tree2;
 
 	var p1 := Pairf(0.0, 0.5);
-	var p2 := Pair[float, float](1.0, 6.0);
+	var p2 := Pair[f32, f32](1.0, 6.0);
 	p1 = p2;	
 
 	return 0;

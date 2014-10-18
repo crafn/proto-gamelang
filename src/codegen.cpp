@@ -13,14 +13,6 @@ namespace gamelang
 namespace  
 {
 
-template <typename A, typename B>
-void insert(A&& a, B&& b)
-{
-	for (auto&& item : b) {
-		a.insert(a.end(), item);
-	}
-}
-
 struct CCodeGen {
 	std::string code;
 
@@ -66,8 +58,10 @@ private:
 	{
 		emit("#include <stdbool.h>\n");
 		emit("#include <stdint.h>\n");
-		emit("typedef int32_t int32;\n");
-		emit("typedef int64_t int64;\n");
+		emit("typedef int32_t i32;\n");
+		emit("typedef int64_t i64;\n");
+		emit("typedef float f32;\n");
+		emit("typedef double f64;\n");
 		emit("typedef unsigned char byte;\n");
 		emit("typedef unsigned int uint;\n");
 		/// @todo Rest
@@ -152,6 +146,7 @@ private:
 			assert(0 && "Trying to generate C for template type");
 		} else {
 			// Ordinary variable
+			assert(value_type.type != AstNodeType::block);
 			gen(value_type);
 			if (var.constant)
 				emit(" const");
@@ -363,6 +358,7 @@ private:
 		CondMod<AstNodeType::identifier, IdentifierNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::block,      BlockNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::varDecl,    VarDeclNode>::eval(*this, node, scope);
+		CondMod<AstNodeType::funcType,   FuncTypeNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::uOp,        UOpNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::biOp,          BiOpNode>::eval(*this, node, scope);
 		CondMod<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node, scope);
@@ -409,6 +405,9 @@ private:
 	void modSpecific(BlockNode& block, ModScope& scope)
 	{
 		assert(!block.tplType);
+
+		if (block.funcType)
+			mod(block.funcType, scope);
 
 		ModScope block_scope;
 		if (block.structType)
@@ -609,9 +608,8 @@ private:
 
 		if (var.valueType->type == AstNodeType::block) {
 			// Replace in-place type with identifier
-			/// @todo This should maybe be done in gen
-			var.valueType= static_cast<BlockNode*>(var.valueType)->boundTo;
-			assert(var.valueType);
+			var.valueType= &traceBoundId(*var.valueType, BoundIdDist::furthest);
+			std::cout << "BLOCK MOD " << var.identifier->name << "\n";
 		}
 
 		if (var.value) {
@@ -619,6 +617,15 @@ private:
 			mod(var.value, scope);
 		}
 
+	}
+
+	void modSpecific(FuncTypeNode& func, ModScope& scope)
+	{
+		if (func.returnType)
+			mod(func.returnType, scope);
+		for (auto&& p : func.params) {
+			mod(p, scope);
+		}
 	}
 
 	void modSpecific(UOpNode& op, ModScope& scope)
@@ -666,20 +673,9 @@ private:
 	void modSpecific(CallNode& call, ModScope& scope)
 	{
 		// Resolve argument routing
-		std::vector<AstNode*> new_args;
-		new_args.resize(call.args.size() + call.implicitArgs.size());
-		std::size_t i= 0;
-		auto setNextArg= [&] (AstNode* arg)
-		{
-			int param_i= call.argRouting[i];
-			assert(param_i >= 0 && param_i < new_args.size());
-			new_args[param_i]= arg;
-			++i;
-		};
-		for (auto&& arg : call.args)
-			setNextArg(arg);
-		for (auto&& arg : call.implicitArgs)
-			setNextArg(arg);
+		std::vector<AstNode*> new_args=
+			resolveRouting(	joined(listToVec(call.args), call.implicitArgs),
+							call.argRouting);
 
 		call.args= vecToList(new_args);
 		call.implicitArgs.clear();

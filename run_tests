@@ -15,7 +15,8 @@ test_files= [
         "template_funcs.gl",
         "sizeof.gl",
         "destructors.gl",
-        "aliases.gl"
+        "aliases.gl",
+        "tpl_deduction.gl"
 ]
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+let foo := tpl[T: struct] -> fn(v: T) { };
+let bar := tpl[U: struct, V: struct] -> fn(a: U, b: V) { };
+
+let SomeType := struct { };
+let main := fn() -> int
+{
+	foo(12345);
+	var i : int = 999;
+	foo(i);
+	bar(10, SomeType());
+	bar(SomeType(), i);
+	return 0;
+};

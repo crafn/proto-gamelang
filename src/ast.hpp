@@ -31,6 +31,23 @@ std::list<T> vecToList(const std::vector<T>& l)
 	return v;
 }
 
+template <typename A, typename B>
+void insert(A&& a, B&& b)
+{
+	for (auto&& item : b) {
+		a.insert(a.end(), item);
+	}
+}
+
+template <typename A, typename B>
+A joined(const A& a, const B& b)
+{
+	A temp;
+	insert(temp, a);
+	insert(temp, b);
+	return temp;
+}
+
 void parseCheck(bool expr, const std::string& msg);
 
 enum class AstNodeType {
@@ -140,6 +157,7 @@ struct FuncTypeNode final : AstNode {
 	}
 };
 
+/// Type of struct type
 /// `struct`
 struct StructTypeNode final : AstNode {
 	/// Var decls picked from the block for easy access
@@ -155,15 +173,31 @@ struct StructTypeNode final : AstNode {
 	}
 };
 
-/// Type of `int`
+/// Type of `int` and friends
 /// Used in dummy declaration `let int : builtin;`
 struct BuiltinTypeNode final : AstNode {
 	BuiltinTypeNode(): AstNode(AstNodeType::builtinType) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
 };
 
+enum class NumLiteralType {
+	none,
+	int_,
+	uint_,
+	i32_,
+	i64_,
+	bool_,
+	f32_,
+	f64_,
+	char_,
+	byte_
+};
+
 struct NumLiteralNode final : AstNode {
+	NumLiteralType literalType= NumLiteralType::none;
 	std::string value;
+
+	VarDeclNode* builtinDecl= nullptr;
 
 	NumLiteralNode(): AstNode(AstNodeType::numLiteral) {}
 	std::vector<AstNode*> getSubNodes() const override { return {}; }
@@ -330,6 +364,11 @@ std::string mangledName(AstNode& node);
 void routeCallArgs(	std::vector<AstNode*>& implicit,
 					std::vector<int>& routing,
 					const CallNode& call);
+
+/// Returns arguments in resolved order
+std::vector<AstNode*> resolveRouting(	const std::vector<AstNode*>& args,
+										const std::vector<int>& routing);
+										
 
 AstContext genAst(const Tokens& tokens);
 

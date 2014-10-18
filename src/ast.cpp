@@ -136,6 +136,22 @@ Bp tokenRbp(TokenType t)
 	return tokenLbp(t);
 }
 
+const char* str(NumLiteralType n)
+{
+	switch (n) {
+		case NumLiteralType::int_: return "int";
+		case NumLiteralType::uint_: return "uint";
+		case NumLiteralType::i32_: return "i32";
+		case NumLiteralType::i64_: return "i64";
+		case NumLiteralType::bool_: return "bool";
+		case NumLiteralType::f32_: return "f32";
+		case NumLiteralType::f64_: return "f64";
+		case NumLiteralType::char_: return "char";
+		case NumLiteralType::byte_: return "byte";
+		default: assert(0 && "Unknown NumLiteralType");
+	}
+}
+
 /// Transforms tokens to an abstract syntax tree
 struct Parser {
 	Parser(const Tokens& t): tokens(t) {}
@@ -146,16 +162,16 @@ struct Parser {
 
 		// Insert builtin types of language
 		std::vector<std::string> builtin_names= {
-			"int",
-			"uint",
-			"int32",
-			"int64",
-			"void",
-			"bool",
-			"float",
-			"double",
-			"char",
-			"byte"
+			str(NumLiteralType::int_),
+			str(NumLiteralType::uint_),
+			str(NumLiteralType::i32_),
+			str(NumLiteralType::i64_),
+			str(NumLiteralType::bool_),
+			str(NumLiteralType::f32_),
+			str(NumLiteralType::f64_),
+			str(NumLiteralType::char_),
+			str(NumLiteralType::byte_),
+			"void"
 		};
 		for (auto& name : builtin_names) {
 			auto builtin_type= context.newNode<BuiltinTypeNode>();
@@ -228,6 +244,12 @@ private:
 	NumLiteralNode* parseNumLiteral(const std::string& text)
 	{
 		auto literal= newNode<NumLiteralNode>();
+		/// @todo Rest of literals
+		NumLiteralType lit_type= NumLiteralType::int_;
+		if (text.find('.') != std::string::npos)
+			lit_type= NumLiteralType::f64_;
+
+		literal->literalType= lit_type;
 		literal->value= text;
 		log(literal->value);
 		return literal;
@@ -509,6 +531,7 @@ private:
 	AstNode* parseBoolLiteral(bool value)
 	{
 		auto literal= newNode<NumLiteralNode>();
+		literal->literalType= NumLiteralType::bool_;
 		literal->value= value ? "true" : "false";
 		return literal;
 	}
@@ -709,6 +732,7 @@ private:
 		CondTie<AstNodeType::block,         BlockNode>::eval(*this, node);
 		CondTie<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
 		CondTie<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node);
+		CondTie<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node);
 		CondTie<AstNodeType::uOp,           UOpNode>::eval(*this, node);
 		CondTie<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
 		CondTie<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
@@ -768,6 +792,20 @@ private:
 		for (auto&& node : func.params)
 			tie(node);
 		tie(func.returnType);
+	}
+
+	void tieSpecific(NumLiteralNode& num)
+	{
+		auto getBuiltinDecl= [&] (NumLiteralType t)
+			-> VarDeclNode*
+		{
+			auto it= idTargets.find(str(t));
+			parseCheck(it != idTargets.end(), "Builtin not found");
+			AstNode* var= NONULL(it->second);
+			parseCheck(var->type == AstNodeType::varDecl, "Builtin corrupted");
+			return static_cast<VarDeclNode*>(var);
+		};
+		num.builtinDecl= getBuiltinDecl(num.literalType);
 	}
 
 	void tieSpecific(UOpNode& op)
@@ -874,6 +912,9 @@ const AstNode& traceValue(const AstNode& node)
 		/// @todo Tpl calls
 
 		parseCheck(false, "Unable to trace value (call)");
+	} else if (node.type == AstNodeType::numLiteral) {
+		auto& num= static_cast<const NumLiteralNode&>(node);
+		return num;
 	}
 
 	parseCheck(false, "Unable to trace value");
@@ -921,6 +962,10 @@ const AstNode& traceType(const AstNode& node)
 				op.opType == BiOpType::rightArrow) {
 			return traceType(*NONULL(op.rhs));
 		}
+	} else if (node.type == AstNodeType::numLiteral) {
+		auto& num= static_cast<const NumLiteralNode&>(node);
+		// Not sure what to return here
+		return *NONULL(num.builtinDecl)->identifier;
 	}
 
 	parseCheck(false, "Unable to trace type");
@@ -974,6 +1019,9 @@ std::string mangledName(AstNode& node)
 			default: assert(0 && "Unknown op in mangling");
 		}
 		return prefix + "_" + mangledName(*NONULL(op.target));
+	} else if (node.type == AstNodeType::block) {
+		auto& block= static_cast<BlockNode&>(node);
+		return mangledName(*NONULL(block.boundTo));
 	}
 
 	parseCheck(false, "Unable to mangle");
@@ -1093,6 +1141,24 @@ void routeCallArgs(	std::vector<AstNode*>& implicit,
 	assert(routing.size() == call.args.size() + implicit.size());
 }
 
+std::vector<AstNode*> resolveRouting(	const std::vector<AstNode*>& args,
+										const std::vector<int>& routing)
+{
+	std::vector<AstNode*> new_args;
+	new_args.resize(args.size());
+	std::size_t i= 0;
+	auto setNextArg= [&] (AstNode* arg)
+	{
+		int param_i= routing[i];
+		assert(param_i >= 0 && param_i < new_args.size());
+		new_args[param_i]= arg;
+		++i;
+	};
+	for (auto&& arg : args)
+		setNextArg(arg);
+	return new_args;
+}
+	
 AstContext genAst(const Tokens& tokens)
 {
 	Parser parser{tokens};

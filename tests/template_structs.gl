@@ -4,7 +4,7 @@ let Pair := tpl[T: struct, U: struct] -> struct
 	var second : ?U = null;
 };
 
-let SomePair := Pair[float, void];
+let SomePair := Pair[f32, void];
 
 let main := fn() -> int
 {

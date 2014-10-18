@@ -9,20 +9,20 @@ extern {
 							d: int, s: int, mode: int) -> ?void;
 	let glfwSetWindowTitle : fn(str: ?char);
 	let glfwSwapBuffers : fn();
-	let glfwSleep : fn(seconds: float);
+	let glfwSleep : fn(seconds: f32);
 }
 
 // OpenGL
 let GL_COLOR_BUFFER_BIT : int = 16384;
 extern {
-	let glClearColor : fn(r: float, g: float, b: float, a: float);
+	let glClearColor : fn(r: f32, g: f32, b: f32, a: f32);
 	let glClear : fn(bits : int);
 }
 
 // libc
 extern {
-	/// @todo int64 -> size_t
-	let malloc: fn(size: int64) -> ?void;
+	/// @todo i64 -> size_t
+	let malloc: fn(size: i64) -> ?void;
 	let free: fn(ptr: ?void);
 }
 
