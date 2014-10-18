@@ -13,49 +13,6 @@ bool whitespace(char ch)
 bool linebreak(char ch)
 { return ch == '\n'; }
 
-/// @todo Restrict
-bool number(const std::string& str)
-{
-	if (str.empty())
-		return false;
-
-	if (str[0] == 'x')
-		return false;
-
-	for (auto&& ch : str) {
-		/// @todo Restrict more
-		bool allowed= ch >= '0' && ch <= '9' || ch == '.' || ch == 'x';
-		if (!allowed)
-			return false;
-	}
-	return true;
-}
-
-/// true if `ch` can be a character in a name
-bool nameChar(char ch)
-{
-	if (ch >= 'a' && ch <= 'z')
-		return true;
-	if (ch >= 'A' && ch <= 'Z')
-		return true;
-	if (ch >= '0' && ch <= '9')
-		return true;
-	if (ch >= '_')
-		return true;
-	return false;
-}
-
-/// true if str looks like a name (like_this236)
-/// @todo 111ab shouldn't be an name, or should it?
-bool name(const std::string& str)
-{
-	for (auto&& ch : str) {
-		if (!nameChar(ch))
-			return false;
-	}
-	return true;
-}
-
 TokenType singleCharTokenType(char ch)
 {
 	switch (ch) {
@@ -150,32 +107,6 @@ TokenType kwTokenType(const std::string& str)
 	return TokenType::unknown;
 }
 
-TokenType tokenType(const std::string& str)
-{
-	if (str.size() == 1) {
-		TokenType t= singleCharTokenType(str[0]);
-		if (t != TokenType::unknown)
-			return t;
-	}
-	if (str.size() == 2) {
-		TokenType t= doubleCharTokenType(str[0], str[1]);
-		if (t != TokenType::unknown)
-			return t;
-	}
-	if (number(str))
-		return TokenType::number;
-		
-	if (name(str)) {
-		TokenType kw= kwTokenType(str);
-		if (kw != TokenType::unknown)
-			return kw;
-		return TokenType::name;
-	}
-
-
-	return TokenType::unknown;
-}
-
 } // anonymous
 
 Tokens tokenize(const char* filepath)
@@ -198,85 +129,104 @@ Tokens tokenize(const char* filepath)
 		contents_size= size;
 	}
 	{ // Tokenize
-		char* next= contents;
+		enum class State {
+			none,
+			maybeSingleChar,
+			number,
+			numberAfterDot,
+			name,
+			str,
+			comment
+		};
+		State state= State::none;
+		char* cur= contents;
 		char* tok_begin= contents;
 		char const* end= contents + contents_size;
-		auto commit= [&tokens, end] (	char* b,
-										char* e,
-										TokenType t= TokenType::unknown)
+		auto commit= [&state, &tokens, end]
+		(char* b, char* e, TokenType t)
 		{
 			if (e > b) {
 				bool last_on_line= e + 1 < end && linebreak(*e);
 				std::string text(b, e);
-				if (t == TokenType::unknown)
-					t= tokenType(text);
+				if (t == TokenType::name) {
+					TokenType kw= kwTokenType(text);
+					if (kw != TokenType::unknown)
+						t= kw;
+				}
 				tokens.emplace_back(Token{t, std::move(text), last_on_line});
+				state= State::none;
 			}
 		};
-		auto findEndQuote= [&tokens, end] (char* b) -> char*
-		{
-			/// @todo Escaping
-			while (b < end && *b != '"')
-				++b;
-			return b;
-		};
-		auto findLineEnd= [&tokens, end] (char* b) -> char*
-		{
-			while (b < end && !linebreak(*b))
-				++b;
-			return b;
-		};
 
-		while (next < end && tok_begin < end) {
-			// Comments
-			if (	tok_begin + 1 < end &&
-					doubleCharTokenType(tok_begin[0], tok_begin[1]) ==
-						TokenType::comment) {
-				auto comment_end= findLineEnd(tok_begin);
-				commit(tok_begin + 2, comment_end, TokenType::comment);
-				++comment_end; // Skip linebreak
-				next= comment_end;
-				tok_begin= comment_end;
-				continue;
-			}
-
-			// String literals
-			if (*tok_begin == '"') {
-				auto str_end= findEndQuote(tok_begin + 1);
-				commit(tok_begin + 1, str_end, TokenType::string);
-				++str_end; // Skip `"`
-				next= str_end;
-				tok_begin= next;
-				continue;
-			}
-
-			if (nameChar(*next)) {
-				if (	tok_begin + 1 == next &&
-						singleCharTokenType(*tok_begin) != TokenType::unknown) {
-					// Token started as a single-char-token, but next
-					// letter turns out to be the beginning of a name
-					commit(tok_begin, next);
-					tok_begin= next;
+		while (cur < end && tok_begin < end) {
+			switch (state) {
+				case State::none:
+					if (singleCharTokenType(*cur) != TokenType::unknown)
+						state= State::maybeSingleChar;
+					else if (*cur >= '0' && *cur <= '9')
+						state= State::number;
+					else if (	(*cur >= 'a' && *cur <= 'z') ||
+								(*cur >= 'A' && *cur <= 'Z') ||
+								(*cur == '_'))
+						state= State::name;
+					else if (*cur == '\"')
+						state= State::str;
+					tok_begin= cur;
+				break;
+				case State::maybeSingleChar: {
+					TokenType t= doubleCharTokenType(*tok_begin, *cur);
+					if (t == TokenType::unknown) {
+						commit(tok_begin, cur, singleCharTokenType(*tok_begin));
+						--cur;
+					} else {
+						if (t == TokenType::comment) {
+							state= State::comment;
+							tok_begin += 2;
+						} else {
+							commit(tok_begin, cur + 1, t);
+						}
+					}
 				}
-				++next;
-				continue;
-			}
+				break;
+				case State::numberAfterDot:
+				case State::number:
+					if (	whitespace(*cur) ||
+							singleCharTokenType(*cur) != TokenType::unknown) {
+						if (state == State::numberAfterDot) {
+							// `123.` <- last dot is detected and removed,
+							// because `.>` is a token
+							commit(tok_begin, cur - 1, TokenType::number);
+							cur -= 2;
+							break;
+						} else if (*cur != '.') {
+							commit(tok_begin, cur, TokenType::number);
+							--cur;
+							break;
+						}
+					}
 
-			if (whitespace(*next)) {
-				commit(tok_begin, next);
-				tok_begin= next + 1;
-			} else {
-				if (doubleCharTokenType(tok_begin[0], tok_begin[1]) !=
-						TokenType::unknown) {
-					commit(tok_begin, tok_begin + 2);
-					tok_begin= tok_begin + 2;
-					++next;
-				} else {
-					commit(tok_begin, next);
-					tok_begin= next;
-				}
+					if (*cur == '.')
+						state= State::numberAfterDot;
+					else
+						state= State::number;
+				break;
+				case State::name:
+					if (	whitespace(*cur) ||
+							singleCharTokenType(*cur) != TokenType::unknown) {
+						commit(tok_begin, cur, TokenType::name);
+						--cur;
+					}
+				break;
+				case State::str:
+					if (*cur == '\"')
+						commit(tok_begin + 1, cur, TokenType::string);
+				break;
+				case State::comment:
+					if (linebreak(*cur))
+						commit(tok_begin, cur, TokenType::comment);
+				default:;
 			}
-			++next;
+			++cur;
 		}
 		tokens.emplace_back(Token{TokenType::eof, "eof", true});
 	}
