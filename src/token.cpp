@@ -78,7 +78,7 @@ TokenType singleCharTokenType(char ch)
 		case '\\': return TokenType::rdiv;
 		case '%': return TokenType::mod;
 		case '.': return TokenType::dot;
-		case '&': return TokenType::ref;
+		case '&': return TokenType::amp;
 		case '^': return TokenType::hat;
 		case '?': return TokenType::question;
 		case '~': return TokenType::tilde;

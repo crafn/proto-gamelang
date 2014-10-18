@@ -95,10 +95,11 @@ Bp tokenLbp(TokenType t)
 		case TokenType::div:          return Bp::prod;
 		case TokenType::mod:          return Bp::prod;
 		case TokenType::dot:          return Bp::member;
-		case TokenType::ref:          return Bp::statement;
+		case TokenType::amp:          return Bp::statement;
 		case TokenType::hat:          return Bp::prefix;
 		case TokenType::question:     return Bp::prefix;
 		case TokenType::tilde:        return Bp::blockBind;
+		case TokenType::squote:       return Bp::statement;
 		case TokenType::comment:      return Bp::comment;
 		case TokenType::kwVar:        return Bp::keyword;
 		case TokenType::kwLet:        return Bp::keyword;
@@ -129,7 +130,8 @@ Bp tokenRbp(TokenType t)
 		case TokenType::sub:
 		case TokenType::mul:
 		case TokenType::div:
-		case TokenType::ref:
+		case TokenType::amp:
+		case TokenType::squote:
 			return Bp::prefix;
 		default:;
 	}
@@ -391,7 +393,7 @@ private:
 		auto op_rbp= tokenRbp(t);
 		UOpType op_type;
 		switch (t) {
-			case TokenType::ref:
+			case TokenType::squote:
 				op_type= UOpType::addrOf;
 			break;
 			case TokenType::mul:
@@ -551,7 +553,7 @@ private:
 				return parseParens();
 			case TokenType::openBlock:
 				return parseBlock();
-			case TokenType::ref:
+			case TokenType::squote:
 			case TokenType::mul:
 			case TokenType::hat:
 			case TokenType::question:

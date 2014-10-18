@@ -20,7 +20,7 @@ let main := fn () -> int
 		.bottom= Block(.height= 1, .width= 5)
 	);
 
-	willFall(&tower);
+	willFall('tower);
 
 	return 0;
 };

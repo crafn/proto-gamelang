@@ -12,13 +12,13 @@ let main = fn () -> int
 {
 	var obj := Object();
 	var other := Object();
-	&obj.>operation();
-	&obj.>combine(&other);
-	var h : int = &obj.>hash() + 10;
-	foo(&other.>hash(), &obj.>hash());
+	'obj.>operation();
+	'obj.>combine('other);
+	var h : int = 'obj.>hash() + 10;
+	foo('other.>hash(), 'obj.>hash());
 	
 	50.>ihash();
-	&obj.>hash().>ihash().>pair_ihash(5);
+	'obj.>hash().>ihash().>pair_ihash(5);
 
 	return 0;
 }

@@ -11,10 +11,10 @@ let main := fn() -> int
 	var integer : int = 10;
 	var character : char = 57;
 
-	var p := Pair[.U= int, char](&character);
-	p.second = &integer;
+	var p := Pair[.U= int, char]('character);
+	p.second = 'integer;
 
-	var p2 := Pair[int, int](&integer, &integer);
+	var p2 := Pair[int, int]('integer, 'integer);
 	var p2_double := Pair[int, int]();
 	
 	/// @todo Make compile

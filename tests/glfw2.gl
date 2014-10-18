@@ -76,8 +76,8 @@ let main := fn() -> int
 	var v2 := Vec2i(.x= 1);
 
 	var vec := Array[Vec2i]();
-	push(&vec, v);
-	&vec.>push(v2);
+	push('vec, v);
+	'vec.>push(v);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {

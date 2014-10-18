@@ -38,7 +38,7 @@ enum class TokenType {
 	div, // /
 	mod, // %
 	dot, // .
-	ref, // &
+	amp, // &
 	hat, // ^
 	tilde, // ~
 	question, // ?
@@ -95,7 +95,7 @@ static const char* enumStr(TokenType type)
 		case TokenType::rdiv: return "rdiv";
 		case TokenType::mod: return "mod";
 		case TokenType::dot: return "dot";
-		case TokenType::ref: return "ref";
+		case TokenType::amp: return "amp";
 		case TokenType::hat: return "hat";
 		case TokenType::question: return "question";
 		case TokenType::tilde: return "tilde";
@@ -154,7 +154,7 @@ static const char* str(TokenType type)
 		case TokenType::rdiv: return "\\";
 		case TokenType::mod: return "%";
 		case TokenType::dot: return ".";
-		case TokenType::ref: return "&";
+		case TokenType::amp: return "&";
 		case TokenType::hat: return "^";
 		case TokenType::question: return "?";
 		case TokenType::tilde: return "~";

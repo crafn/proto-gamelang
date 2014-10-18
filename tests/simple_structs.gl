@@ -17,7 +17,7 @@ let main := fn () -> int
 	var toy := CatToy();
 	toy.featherness = 99;
 
-	var cat := Cat(.toy= &toy);
+	var cat := Cat(.toy= 'toy);
 
 	return 0;
 };
