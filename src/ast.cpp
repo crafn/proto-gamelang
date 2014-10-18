@@ -842,11 +842,8 @@ const AstNode& traceValue(const AstNode& node)
 			return id;
 	} else if (node.type == AstNodeType::varDecl) {
 		auto& var_decl= static_cast<const VarDeclNode&>(node);
-		if (var_decl.identifier->name == "Vec2i") {
-			int x;
-			++x;	
-		}
-		if (var_decl.value)
+		if (	var_decl.constant &&
+				var_decl.value)
 			return traceValue(*var_decl.value);
 		else
 			return *NONULL(var_decl.identifier); // extern decl
@@ -867,6 +864,16 @@ const AstNode& traceValue(const AstNode& node)
 				op.opType == BiOpType::rightArrow) {
 			return traceValue(*NONULL(op.rhs));
 		}
+	} else if (node.type == AstNodeType::call) {
+		auto& call= static_cast<const CallNode&>(node);
+		auto& traced_func= traceType(*NONULL(call.func));
+		if (traced_func.type == AstNodeType::funcType) {
+			auto& f_type= static_cast<const FuncTypeNode&>(traced_func);
+			return *NONULL(f_type.returnType);
+		}
+		/// @todo Tpl calls
+
+		parseCheck(false, "Unable to trace value (call)");
 	}
 
 	parseCheck(false, "Unable to trace value");
