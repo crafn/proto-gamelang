@@ -115,6 +115,8 @@ Bp tokenLbp(TokenType t)
 		case TokenType::kwExtern:     return Bp::keyword;
 		case TokenType::kwTpl:        return Bp::keyword;
 		case TokenType::kwSizeof:     return Bp::keyword;
+		case TokenType::kwTrue:       return Bp::literal;
+		case TokenType::kwFalse:      return Bp::literal;
 		default: log(enumStr(t)); assert(0 && "Missing token binding power");
 	}
 }
@@ -150,8 +152,6 @@ struct Parser {
 			"int64",
 			"void",
 			"bool",
-			"true",
-			"false",
 			"float",
 			"double",
 			"char",
@@ -506,6 +506,13 @@ private:
 		return &left;
 	}
 
+	AstNode* parseBoolLiteral(bool value)
+	{
+		auto literal= newNode<NumLiteralNode>();
+		literal->value= value ? "true" : "false";
+		return literal;
+	}
+
 	AstNode* nud(It it)
 	{
 		switch (it->type) {
@@ -558,6 +565,10 @@ private:
 				return parseTemplateType();
 			case TokenType::kwSizeof:
 				return parseSizeOf();
+			case TokenType::kwTrue:
+				return parseBoolLiteral(true);
+			case TokenType::kwFalse:
+				return parseBoolLiteral(false);
 			default:;
 		}
 		parseCheck(false, "Invalid nud token: " + it->text);
@@ -821,18 +832,22 @@ private:
 AstContext::AstContext()
 { }
 
-AstNode& traceValue(AstNode& node)
+const AstNode& traceValue(const AstNode& node)
 {
 	if (node.type == AstNodeType::identifier) {
-		auto& id= static_cast<IdentifierNode&>(node);
+		auto& id= static_cast<const IdentifierNode&>(node);
 		if (id.boundTo)
 			return traceValue(*id.boundTo);
 		else
 			return id;
 	} else if (node.type == AstNodeType::varDecl) {
-		auto& var_decl= static_cast<VarDeclNode&>(node);
+		auto& var_decl= static_cast<const VarDeclNode&>(node);
+		if (var_decl.identifier->name == "Vec2i") {
+			int x;
+			++x;	
+		}
 		if (var_decl.value)
-			return *var_decl.value;
+			return traceValue(*var_decl.value);
 		else
 			return *NONULL(var_decl.identifier); // extern decl
 	} else if (node.type == AstNodeType::uOp) {
@@ -847,7 +862,7 @@ AstNode& traceValue(AstNode& node)
 	} else if (node.type == AstNodeType::block) {
 		return node;
 	} else if (node.type == AstNodeType::biOp) {
-		auto& op= static_cast<BiOpNode&>(node);
+		auto& op= static_cast<const BiOpNode&>(node);
 		if (	op.opType == BiOpType::dot ||
 				op.opType == BiOpType::rightArrow) {
 			return traceValue(*NONULL(op.rhs));
@@ -857,34 +872,36 @@ AstNode& traceValue(AstNode& node)
 	parseCheck(false, "Unable to trace value");
 }
 
-AstNode& traceType(AstNode& node)
+const AstNode& traceType(const AstNode& node)
 {
 	if (node.type == AstNodeType::identifier) {
-		auto& id= static_cast<IdentifierNode&>(node);
+		auto& id= static_cast<const IdentifierNode&>(node);
 		if (id.boundTo)
 			return traceType(*id.boundTo);
 	} else if (node.type == AstNodeType::varDecl) {
-		auto& var_decl= static_cast<VarDeclNode&>(node);
+		auto& var_decl= static_cast<const VarDeclNode&>(node);
 		if (var_decl.valueType)
 			return *var_decl.valueType;
 	} else if (node.type == AstNodeType::call) {
-		auto& call= static_cast<CallNode&>(node);
+		auto& call= static_cast<const CallNode&>(node);
 		assert(call.func);
 		auto& val= traceValue(*call.func);
 		if (call.squareCall) {
 			assert(val.type == AstNodeType::block);
 			return val;
 		} else if (val.type == AstNodeType::block) {
-			auto& block= static_cast<BlockNode&>(val);
+			auto& block= static_cast<const BlockNode&>(val);
 			assert(!block.tplType);
 			if (block.structType) {
 				return block; // ctor call
 			} else if (block.funcType) {
 				assert(0 && "@todo");
 			}
+		} else {
+			parseCheck(false, "Unable to trace type (call)");
 		}
 	} else if (node.type == AstNodeType::block) {
-		auto& block= static_cast<BlockNode&>(node);
+		auto& block= static_cast<const BlockNode&>(node);
 		if (block.tplType)
 			return *block.tplType;
 		if (block.structType)
@@ -892,7 +909,7 @@ AstNode& traceType(AstNode& node)
 		if (block.funcType)
 			return *block.funcType;
 	} else if (node.type == AstNodeType::biOp) {
-		auto& op= static_cast<BiOpNode&>(node);
+		auto& op= static_cast<const BiOpNode&>(node);
 		if (	op.opType == BiOpType::dot ||
 				op.opType == BiOpType::rightArrow) {
 			return traceType(*NONULL(op.rhs));
@@ -902,29 +919,30 @@ AstNode& traceType(AstNode& node)
 	parseCheck(false, "Unable to trace type");
 }
 
-const IdentifierNode& traceBoundId(const AstNode& node)
+const IdentifierNode& traceBoundId(const AstNode& node, BoundIdDist dist)
 {
 	if (node.type == AstNodeType::identifier) {
 		auto& id= static_cast<const IdentifierNode&>(node);
 		if (!id.boundTo)
 			return id;
-
-		auto& bound= *id.boundTo;
-		if (bound.type == AstNodeType::identifier) {
-			return static_cast<IdentifierNode&>(bound);
-		} else if (bound.type == AstNodeType::varDecl) {
-			auto& decl= static_cast<VarDeclNode&>(bound);
-			return *NONULL(decl.identifier);
-		} else if (bound.type == AstNodeType::label) {
-			auto& label= static_cast<LabelNode&>(bound);
-			return *NONULL(label.identifier);
-		}
+		return traceBoundId(*id.boundTo, dist);
 	} else if (node.type == AstNodeType::block) {
 		auto& block= static_cast<const BlockNode&>(node);
 		if (block.boundTo)
-			return traceBoundId(*block.boundTo);
+			return traceBoundId(*block.boundTo, dist);
+	} else if (node.type == AstNodeType::varDecl) {
+		auto& decl= static_cast<const VarDeclNode&>(node);
+		if (	dist == BoundIdDist::furthest &&
+				decl.constant &&
+				decl.value &&
+				decl.value->type == AstNodeType::identifier) {
+			return traceBoundId(*decl.value, dist);
+		}
+		return *NONULL(decl.identifier);
+	} else if (node.type == AstNodeType::label) {
+		auto& label= static_cast<const LabelNode&>(node);
+		return *NONULL(label.identifier);
 	}
-
 	parseCheck(false, "Unable to trace bound id");
 }
 
@@ -932,8 +950,8 @@ std::string mangledName(AstNode& node)
 {
 	if (node.type == AstNodeType::identifier){
 		auto& id= static_cast<IdentifierNode&>(node);
-		if (id.boundTo && 0) /// @todo aliases must use bound name
-			return mangledName(*id.boundTo);
+		if (id.boundTo) // Aliases will become the original name
+			return traceBoundId(id, BoundIdDist::furthest).name;
 		else
 			return id.name;
 	} else if (node.type == AstNodeType::varDecl) {

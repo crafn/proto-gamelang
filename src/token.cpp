@@ -16,6 +16,12 @@ bool linebreak(char ch)
 /// @todo Restrict
 bool number(const std::string& str)
 {
+	if (str.empty())
+		return false;
+
+	if (str[0] == 'x')
+		return false;
+
 	for (auto&& ch : str) {
 		/// @todo Restrict more
 		bool allowed= ch >= '0' && ch <= '9' || ch == '.' || ch == 'x';
@@ -133,6 +139,14 @@ TokenType kwTokenType(const std::string& str)
 		return TokenType::kwTpl;
 	if (str == "sizeof")
 		return TokenType::kwSizeof;
+	if (str == "true")
+		return TokenType::kwTrue;
+	if (str == "false")
+		return TokenType::kwFalse;
+	if (str == "true")
+		return TokenType::kwTrue;
+	if (str == "false")
+		return TokenType::kwFalse;
 	return TokenType::unknown;
 }
 

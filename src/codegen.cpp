@@ -140,9 +140,14 @@ private:
 		} else if (value_type.type == AstNodeType::structType) {
 			assert(var.constant && "Non-constant struct var");
 			const std::string struct_name= NONULL(var.identifier)->name;
-			emit("typedef struct " + struct_name + " " + struct_name + ";\n");
-			emit("struct " + struct_name);
-			gen(*NONULL(var.value)); // Block
+			if (var.value->type == AstNodeType::block) {
+				emit("typedef struct " + struct_name + " " + struct_name + ";\n");
+				emit("struct " + struct_name);
+				gen(*NONULL(var.value)); // Block
+			} else if (var.value->type == AstNodeType::identifier) { // Alias
+				auto& id= static_cast<IdentifierNode&>(*var.value);
+				emit("typedef struct " + id.name + " " + struct_name);
+			}
 		} else if (value_type.type == AstNodeType::tplType) {
 			assert(0 && "Trying to generate C for template type");
 		} else {
@@ -391,7 +396,8 @@ private:
 	{
 		ModScope* p_scope= &scope;
 		while (p_scope) {
-			auto it= p_scope->prefixes.find(&traceBoundId(id));
+			auto it= p_scope->prefixes.find(
+					&traceBoundId(id, BoundIdDist::nearest));
 			if (it != p_scope->prefixes.end()) {
 				id.name= it->second + id.name;
 				break;
@@ -585,7 +591,8 @@ private:
 			ptr_to_val->target= var.identifier;
 
 			auto block_bound_id= static_cast<BlockNode&>(traced_type).boundTo;
-			auto type_name= traceBoundId(*NONULL(block_bound_id)).name;
+			auto type_name=
+				traceBoundId(*NONULL(block_bound_id), BoundIdDist::nearest).name;
 
 			auto dtor_call_id= context.newNode<IdentifierNode>();
 			dtor_call_id->name= dtorName(type_name);

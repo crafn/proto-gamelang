@@ -26,7 +26,15 @@ extern {
 	let free: fn(ptr: ?void);
 }
 
-let Vector := tpl[T: struct] -> struct
+let Vec2 := tpl[V: struct] -> struct
+{
+	var x: V = 0;
+	var y: V = 0;
+};
+
+let Vec2i := Vec2[int];
+
+let Array := tpl[T: struct] -> struct
 {
 	var size: int = 0;
 	var data: ?T = null;
@@ -34,12 +42,12 @@ let Vector := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo fix deref binding power
-/// @todo Proper name lookup
 /// @todo Template argument deduction
+/// @todo Proper name lookup
 /// @todo ++, <=, >= operators
 /// @todo for-loop
-let push := tpl[U: struct] -> fn(vec: ^Vector[U], elem: U)
+/// @todo fix deref binding power
+let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
 {
 	// Naive implementation
 	var new_data : ^U = malloc(sizeof(U)*(vec->size + 1));
@@ -65,9 +73,12 @@ let main := fn() -> int
 	glfwOpenWindow(400, 300, 0,0,0,0,0,0, GLFW_WINDOW);
 	glfwSetWindowTitle("gamelang");
 
-	var vec := Vector[int]();
-	&vec.>push[int](10);
-	&vec.>push[int](16);
+	var v := Vec2[int](.x= 10, .y= 20);
+	var v2 := Vec2i(.x= 1);
+
+	var vec := Array[Vec2i]();
+	//&vec.>push[Vec2i](v);
+	//&vec.>push[Vec2i](v2);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {

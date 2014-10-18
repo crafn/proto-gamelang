@@ -303,18 +303,26 @@ private:
 /// e.g. identifier -> func block
 ///      vector -> tpl block
 ///      identifier -> extern identifier
-AstNode& traceValue(AstNode& expr);
+const AstNode& traceValue(const AstNode& expr);
+static AstNode& traceValue(AstNode& node)
+{ return const_cast<AstNode&>(traceValue(static_cast<const AstNode&>(node))); }
 
 /// e.g. identifier -> func type
 ///      vector -> tpl type
 ///      identifier -> struct type
-AstNode& traceType(AstNode& expr);
+const AstNode& traceType(const AstNode& expr);
+static AstNode& traceType(AstNode& node)
+{ return const_cast<AstNode&>(traceType(static_cast<const AstNode&>(node))); }
 
+enum class BoundIdDist {
+	furthest, /// The original declaration of some value/type
+	nearest /// First name on the way when tracing towards the original decl
+};
 /// e.g. id -> id.boundTo->identifier
 ///      block -> block.boundTo
-const IdentifierNode& traceBoundId(const AstNode& node);
-static IdentifierNode& traceBoundId(AstNode& node)
-{ return const_cast<IdentifierNode&>(traceBoundId(static_cast<const AstNode&>(node))); }
+const IdentifierNode& traceBoundId(const AstNode& node, BoundIdDist dist);
+static IdentifierNode& traceBoundId(AstNode& node, BoundIdDist dist)
+{ return const_cast<IdentifierNode&>(traceBoundId(static_cast<const AstNode&>(node), dist)); }
 
 std::string mangledName(AstNode& node);
 

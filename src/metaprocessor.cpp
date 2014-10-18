@@ -177,7 +177,7 @@ private:
 		// If input id is bound to a tpl parameter,
 		// substitute it with the scope argument
 		for (auto&& arg : scope.args) {
-			if (arg.id == &traceBoundId(id_in)) {
+			if (arg.id == &traceBoundId(id_in, BoundIdDist::nearest)) {
 				return NONULL(arg.value);
 			}
 		}
@@ -256,9 +256,11 @@ private:
 			var_out->identifier= output.newNode<IdentifierNode>();
 			var_out->identifier->boundTo= var_out;
 			var_out->identifier->name=
-				NONULL(var_in.identifier)->name + "__" + scope.str();
+				traceBoundId(var_in, BoundIdDist::furthest).name + "__" + scope.str();
 		} else {
-			auto id_node= NONULL(run(var_in.identifier, scope));
+			auto& original_id_in=
+				traceBoundId(*var_in.identifier, BoundIdDist::furthest);
+			auto id_node= run(&original_id_in, scope);
 			assert(id_node->type == AstNodeType::identifier);
 			var_out->identifier= static_cast<IdentifierNode*>(id_node);
 			var_out->identifier->boundTo= var_out;
@@ -274,6 +276,7 @@ private:
 		}
 
 		assert(var_out->valueType != nullptr);
+		assert(var_out->identifier->name != "Array___Vec2i");
 
 		nodeStack.pop();
 		return var_out;
