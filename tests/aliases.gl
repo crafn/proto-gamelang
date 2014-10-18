@@ -1,0 +1,32 @@
+let Tree := struct
+{
+	var length : int;
+	var age : int;
+};
+
+let TreeAlias := Tree;
+
+let Pair := tpl[T: struct, U: struct] -> struct
+{
+	var first: T;
+	var second: U;
+};
+
+let Pairi := Pair[int, int];
+let Pairf := Pair[float, float];
+
+/// @todo Allow template aliases
+//let TemplateAlias := tpl[T : struct] -> Pair[int, T];
+
+let main := fn() -> int
+{
+	var tree1 := Tree(0, 0);
+	var tree2 := TreeAlias(1, 1);
+	tree1 = tree2;
+
+	var p1 := Pairf(0.0, 0.5);
+	var p2 := Pair[float, float](1.0, 6.0);
+	p1 = p2;	
+
+	return 0;
+};

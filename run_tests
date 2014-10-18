@@ -14,7 +14,8 @@ test_files= [
         "template_structs.gl",
         "template_funcs.gl",
         "sizeof.gl",
-        "destructors.gl"
+        "destructors.gl",
+        "aliases.gl"
 ]
 
 if __name__ == "__main__":
