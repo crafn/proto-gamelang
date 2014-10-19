@@ -184,8 +184,11 @@ struct Parser {
 			builtin_id->boundTo= builtin_decl;
 			builtin_decl->identifier= builtin_id;
 			builtin_decl->valueType= builtin_type;
-
 			root->nodes.emplace_back(builtin_decl);
+
+			IdDef id_def;
+			id_def.idNode= builtin_id;
+			idDefs[name].emplace_back(id_def);
 		}
 
 		// Start parsing
@@ -197,9 +200,17 @@ struct Parser {
 	}
 
 private:
+	/// Declaration of identifier
+	struct IdDef {
+		IdentifierNode* idNode= nullptr;
+		//BlockNode* enclosingBlock= nullptr;
+	};
+
 	const Tokens& tokens;
 	Tokens::const_iterator token;
 	AstContext context;
+	/// id-string to all matching IdDefs
+	std::map<std::string, std::vector<IdDef>> idDefs;
 
 	using It= Tokens::const_iterator;
 	template <typename T>
@@ -254,6 +265,21 @@ private:
 		literal->literalType= lit_type;
 		literal->value= text;
 		log(literal->value);
+
+		auto getBuiltinDecl= [&] (NumLiteralType t)
+			-> VarDeclNode*
+		{
+			auto it= idDefs.find(str(t));
+			parseCheck(it != idDefs.end(), "Builtin id not found");
+			const std::vector<IdDef>& defs= it->second;
+			parseCheck(defs.size() == 1, "Multiple definitions for a builtin");
+			IdentifierNode* id= NONULL(defs.front().idNode);
+			parseCheck(	id->boundTo && id->boundTo->type == AstNodeType::varDecl,
+						"Builtin corrupted");
+			return static_cast<VarDeclNode*>(id->boundTo);
+		};
+		literal->builtinDecl= getBuiltinDecl(literal->literalType);
+
 		return literal;
 	}
 
@@ -272,9 +298,13 @@ private:
 		var->constant= constant;
 
 		auto var_name= token->text;
-		match(TokenType::name, "Var name must be in form abc123");
+		match(TokenType::name, "Invalid var name: " + var_name);
 		var->identifier= parseIdentifier(var_name);
 		var->identifier->boundTo= var;
+
+		IdDef id_def;
+		id_def.idNode= var->identifier;
+		idDefs[var_name].emplace_back(id_def);
 
 		if (token->type != TokenType::assign) { // Explicit type
 			match(TokenType::declaration, "Expected :");
@@ -798,16 +828,7 @@ private:
 
 	void tieSpecific(NumLiteralNode& num)
 	{
-		auto getBuiltinDecl= [&] (NumLiteralType t)
-			-> VarDeclNode*
-		{
-			auto it= idTargets.find(str(t));
-			parseCheck(it != idTargets.end(), "Builtin not found");
-			AstNode* var= NONULL(it->second);
-			parseCheck(var->type == AstNodeType::varDecl, "Builtin corrupted");
-			return static_cast<VarDeclNode*>(var);
-		};
-		num.builtinDecl= getBuiltinDecl(num.literalType);
+
 	}
 
 	void tieSpecific(UOpNode& op)
@@ -817,21 +838,8 @@ private:
 
 	void tieSpecific(BiOpNode& op)
 	{
-		/// @todo Shouldn't be in tie phase, because destroys information
-		if (op.opType == BiOpType::rightInsert) {
-			parseCheck(	op.rhs->type == AstNodeType::call,
-						"=> must be followed by a call");
-			// "Method" call
-			auto call= static_cast<CallNode*>(op.rhs);
-			call->args.emplace(call->args.begin(), op.lhs);
-			call->namedArgs.emplace(call->namedArgs.begin(), "");
-			tie(call);
-
-			substitution= call;
-		} else {
-			tie(op.lhs);
-			tie(op.rhs);
-		}
+		tie(op.lhs);
+		tie(op.rhs);
 	}
 
 	void tieSpecific(CtrlStatementNode& ret)

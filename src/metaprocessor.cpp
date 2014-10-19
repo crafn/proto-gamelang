@@ -354,6 +354,16 @@ private:
 
 	AstNode* runSpecific(const BiOpNode& op_in, const TplScope& scope)
 	{
+		if (op_in.opType == BiOpType::rightInsert) {
+			parseCheck(	op_in.rhs->type == AstNodeType::call,
+						".> must be followed by a call");
+			// "Method" call
+			CallNode call_copy= *static_cast<CallNode*>(op_in.rhs);
+			call_copy.args.emplace(call_copy.args.begin(), op_in.lhs);
+			call_copy.namedArgs.emplace(call_copy.namedArgs.begin(), "");
+			return run(&call_copy, scope);
+		}
+
 		auto op_out= output.newNode<BiOpNode>();
 		nodeStack.push(op_out);
 		op_out->opType= op_in.opType;
