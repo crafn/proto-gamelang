@@ -64,6 +64,15 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 		return TokenType::leq;
 	if (ch1 == '>' && ch2 == '=')
 		return TokenType::geq;
+	if (ch2 == '=') {
+		switch (ch1) {
+			case '+': return TokenType::addAssign;
+			case '-': return TokenType::subAssign;
+			case '*': return TokenType::mulAssign;
+			case '/': return TokenType::divAssign;
+			default:;
+		}
+	}
 
 	return TokenType::unknown;
 }

@@ -34,6 +34,10 @@ enum class TokenType {
 	greater, // >
 	leq, // <=
 	geq, // >=
+	addAssign, // +=
+	subAssign, // -=
+	mulAssign, // *=
+	divAssign, // /=
 	add, // +
 	sub, // -
 	mul, // *
@@ -92,6 +96,10 @@ static const char* enumStr(TokenType type)
 		case TokenType::greater: return "greater";
 		case TokenType::leq: return "leq";
 		case TokenType::geq: return "geq";
+		case TokenType::addAssign: return "addAssign";
+		case TokenType::subAssign: return "subAssign";
+		case TokenType::mulAssign: return "mulAssign";
+		case TokenType::divAssign: return "divAssign";
 		case TokenType::add: return "add";
 		case TokenType::sub: return "sub";
 		case TokenType::mul: return "mul";
@@ -153,6 +161,10 @@ static const char* str(TokenType type)
 		case TokenType::greater: return ">";
 		case TokenType::leq: return "<=";
 		case TokenType::geq: return ">=";
+		case TokenType::addAssign: return "+=";
+		case TokenType::subAssign: return "-=";
+		case TokenType::mulAssign: return "*=";
+		case TokenType::divAssign: return "/=";
 		case TokenType::add: return "+";
 		case TokenType::sub: return "-";
 		case TokenType::mul: return "*";

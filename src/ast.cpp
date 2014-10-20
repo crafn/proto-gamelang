@@ -91,6 +91,10 @@ Bp tokenLbp(TokenType t)
 		case TokenType::greater:      return Bp::comp;
 		case TokenType::leq:          return Bp::comp;
 		case TokenType::geq:          return Bp::comp;
+		case TokenType::addAssign:    return Bp::assignment;
+		case TokenType::subAssign:    return Bp::assignment;
+		case TokenType::mulAssign:    return Bp::assignment;
+		case TokenType::divAssign:    return Bp::assignment;
 		case TokenType::add:          return Bp::sum;
 		case TokenType::sub:          return Bp::sum;
 		case TokenType::mul:          return Bp::prod;
