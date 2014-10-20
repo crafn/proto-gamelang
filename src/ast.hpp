@@ -109,6 +109,7 @@ struct TplTypeNode;
 /// `{ ... }`
 struct BlockNode final : AstNode {
 	IdentifierNode* boundTo= nullptr;
+	BlockNode* enclosing= nullptr;
 
 	bool loop= false;
 	bool external= false; /// FFI
@@ -333,7 +334,7 @@ struct AstContext {
 	/// Declaration info of an identifier in ast
 	struct IdDef {
 		IdentifierNode* idNode= nullptr;
-		//BlockNode* enclosingBlock= nullptr;
+		BlockNode* enclosing= nullptr;
 	};
 
 	/// id-string -> all matching IdDefs

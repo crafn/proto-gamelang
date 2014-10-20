@@ -45,6 +45,7 @@ private:
 			return	std::tie(id, v_str) <
 					std::tie(other.id, o_v_str); }
 	};
+	/// @todo Rename to TplContext
 	struct TplScope {
 		/// Given arguments to tpl struct/function
 		std::vector<TplArg> args;
@@ -70,6 +71,8 @@ private:
 
 	/// Output node creation stack
 	std::stack<AstNode*> nodeStack;
+	/// Current output-block from which name lookup starts
+	std::stack<BlockNode*> lookupStack;
 	std::list<TplScope> scopeStorage;
 	/// Maps input nodes to generated output nodes
 	std::map<const AstNode*, std::map<TplScope, AstNode*>> inToOutNode;
@@ -77,9 +80,11 @@ private:
 	std::map<BlockNode*, const BlockNode*> outToInTpl;
 	/// Used to insert template instantiations in the vicinity of original tpl decls
 	std::map<const TplTypeNode*, BlockNodeIt> tplTypePlaces;
+	/// Maps output block to tpl scope used on instantiation
+	std::map<BlockNode*, const TplScope*> tplScopeByBlock;
 	/// Keeps track of instantiated templates
 	std::set<std::tuple<const TplTypeNode*, AstNode*>> tplInstances;
-	/// Non-instantiated templates and nodes depending on them
+	/// Contains non-instantiated templates and nodes depending on them
 	/// These aren't going to make it to the ast even though they are output nodes
 	std::set<const AstNode*> astExcluded;
 	int astExclusionScope= 0;
@@ -187,6 +192,7 @@ private:
 	AstNode* runSpecific(const GlobalNode& global_in, const TplScope& scope)
 	{
 		auto global_out= output.newNode<GlobalNode>();
+		tplScopeByBlock[nullptr]= &scope;
 		nodeStack.push(global_out);
 		for (auto&& node : global_in.nodes) {
 			AstNode* result= run(node, scope);
@@ -216,23 +222,53 @@ private:
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
 		
+		// Bind newly created id with the help of input id
 		if (id_in.boundTo) {
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
 			assert(bound_out);
 			assert(bound_out->type != AstNodeType::identifier);
 			id_out->boundTo= bound_out;
-		} else {
+		} else { // Perform name lookup
 			auto it= input.idDefs.find(id_in.name);
-			parseCheck(it != input.idDefs.end(), "Unknown id: " + id_in.name);
+			parseCheck(	it != input.idDefs.end(),
+						"Unknown identifier: " + id_in.name);
 			auto& defs= it->second;
 			assert(!defs.empty());
-			/// @todo Allow shadowing
-			//parseCheck(defs.size() < 2, "Multiple ids with the same name: " + id_in.name);
-			id_out->boundTo= findOutNodeOf(*defs.front().idNode->boundTo, scope);
-			if (!id_out->boundTo) {
-				for (auto&& m : defs)
-					std::cout << "IDDD " << m.idNode << "\n";
+			
+			BlockNode* search_block_out= nullptr;
+			if (!lookupStack.empty())
+				search_block_out= lookupStack.top();
+
+			const IdentifierNode* name_in= nullptr;
+			int match_count= 0;
+			while (1) {
+				for (auto&& id_def : defs) {
+					std::cout << "  SEARCHING DEF " << id_def.idNode->name << "\n";
+					std::cout << "  enclosing " << id_def.enclosing << "\n";
+					std::cout << "  scope size " << scope.args.size() << "\n\n";
+					auto* tpl_scope= tplScopeByBlock[search_block_out];
+					assert(tpl_scope || !search_block_out);
+					if (	(!id_def.enclosing && !search_block_out) ||
+							(	id_def.enclosing && tpl_scope &&
+								findOutNodeOf(*NONULL(id_def.enclosing), *NONULL(tpl_scope)) ==
+								search_block_out)) {
+						name_in= NONULL(id_def.idNode);
+						++match_count;
+					}
+				}
+				if (name_in)
+					break;
+				else if (search_block_out)
+					search_block_out= search_block_out->enclosing;
+				else
+					break; // Not found
 			}
+
+			parseCheck(name_in, "Name lookup failed: " + id_in.name);
+			parseCheck(	match_count < 2,
+						"Multiple ids with the same name: " + id_in.name);
+
+			id_out->boundTo= findOutNodeOf(*NONULL(name_in->boundTo), scope);
 			assert(id_out->boundTo);
 			assert(id_out->boundTo->type != AstNodeType::identifier);
 		}
@@ -248,8 +284,12 @@ private:
 			uninstantiated_tpl= true;
 
 		auto block_out= output.newNode<BlockNode>();
+		if (!lookupStack.empty())
+			block_out->enclosing= lookupStack.top();
+		tplScopeByBlock[block_out]= &scope;
 		nodeStack.push(block_out);
-		
+		lookupStack.push(block_out);
+
 		if (parent.type == AstNodeType::varDecl) {
 			auto parent_var= static_cast<VarDeclNode*>(&parent);
 			block_out->boundTo= parent_var->identifier;
@@ -299,6 +339,7 @@ private:
 		if (uninstantiated_tpl)
 			--astExclusionScope;
 
+		lookupStack.pop();
 		nodeStack.pop();
 		return block_out;
 	}
@@ -319,6 +360,12 @@ private:
 			var_out->identifier->name=
 				traceBoundId(var_in, BoundIdDist::furthest).name
 					+ "__" + scope.str();
+
+			AstContext::IdDef def;
+			def.idNode= var_out->identifier;
+			def.enclosing= nullptr; // Instantiated tpl types have global scope
+			output.idDefs[var_out->identifier->name].emplace_back(def);
+			std::cout << "CREATED ID DEF " << var_out->identifier->name << "\n";
 		} else {
 			var_out->identifier->name= var_in.identifier->name;
 		}
@@ -417,21 +464,52 @@ private:
 
 	AstNode* runSpecific(const BiOpNode& op_in, const TplScope& scope)
 	{
+		// "Method" call
 		if (op_in.opType == BiOpType::rightInsert) {
 			parseCheck(	op_in.rhs->type == AstNodeType::call,
 						".> must be followed by a call");
-			// "Method" call
 			CallNode call_copy= *static_cast<CallNode*>(op_in.rhs);
 			call_copy.args.emplace(call_copy.args.begin(), op_in.lhs);
 			call_copy.namedArgs.emplace(call_copy.namedArgs.begin(), "");
 			return run(&call_copy, scope, false);
 		}
 
+		/// Returns enclosing scope of op.rhs if possible
+		std::function<BlockNode* (BiOpNode&)> traceEnclosingScope=
+		[&traceEnclosingScope] (BiOpNode& op) -> BlockNode*
+		{
+			if (	op.opType != BiOpType::dot &&
+					op.opType != BiOpType::rightArrow)
+				return nullptr;
+
+			auto* deref_type= &traceType(*op.lhs);
+			if (deref_type->type == AstNodeType::uOp) {
+				auto uop= static_cast<UOpNode*>(deref_type);
+				if (	uop->opType == UOpType::pointer ||
+						uop->opType == UOpType::reference) {
+					std::cout <<" LHS PTR UOP\n";
+					deref_type= &traceValue(*uop->target);
+				}
+			}
+
+			if (deref_type->type == AstNodeType::block)
+				return static_cast<BlockNode*>(deref_type);
+
+			return nullptr;
+		};
+
 		auto op_out= output.newNode<BiOpNode>();
 		nodeStack.push(op_out);
 		op_out->opType= op_in.opType;
 		op_out->lhs= NONULL(run(op_in.lhs, scope));
+
+		auto* enclosing= traceEnclosingScope(*op_out);
+		if (enclosing)
+			lookupStack.push(enclosing);
 		op_out->rhs= NONULL(run(op_in.rhs, scope));
+		if (enclosing)
+			lookupStack.pop();
+
 		nodeStack.pop();
 		return op_out;
 	}

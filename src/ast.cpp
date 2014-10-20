@@ -1,6 +1,7 @@
 #include "ast.hpp"
 #include "nullsafety.hpp"
 
+#include <stack>
 #include <type_traits>
 
 // Debug
@@ -202,6 +203,7 @@ private:
 	const Tokens& tokens;
 	Tokens::const_iterator token;
 	AstContext context;
+	std::stack<BlockNode*> blockStack;
 
 	using IdDef= AstContext::IdDef;
 	using It= Tokens::const_iterator;
@@ -295,6 +297,7 @@ private:
 
 		IdDef id_def;
 		id_def.idNode= var->identifier;
+		id_def.enclosing= blockStack.empty() ? nullptr : blockStack.top();
 		context.idDefs[var_name].emplace_back(id_def);
 
 		if (token->type != TokenType::assign) { // Explicit type
@@ -375,17 +378,33 @@ private:
 		return expr;
 	}
 
+	enum class BlockFlag : int {
+		none= 0,
+		external= 2
+	};
+
 	/// `{ code(); }`
-	BlockNode* parseBlock()
+	BlockNode* parseBlock(BlockFlag flags= BlockFlag::none)
 	{
 		log("block");
 		auto&& log_indent= logIndentGuard();
 
 		auto block= newNode<BlockNode>();
-		while (token->type != TokenType::closeBlock) {
-			block->nodes.emplace_back(parseExpr());
+		if (flags == BlockFlag::external)
+			block->external= true;
+
+		if (!block->external) {
+			if (!blockStack.empty())
+				block->enclosing= blockStack.top();
+			blockStack.push(block);
 		}
+
+		while (token->type != TokenType::closeBlock)
+			block->nodes.emplace_back(parseExpr());
 		match(TokenType::closeBlock);
+
+		if (!block->external)
+			blockStack.pop();
 
 		return block;
 	}
@@ -492,8 +511,7 @@ private:
 	BlockNode* parseExternal()
 	{
 		match(TokenType::openBlock, "Missing { after extern");
-		auto block= parseBlock();
-		block->external= true;
+		auto block= parseBlock(BlockFlag::external);
 		return block;
 	}
 
@@ -775,7 +793,7 @@ const AstNode& traceType(const AstNode& node)
 	} else if (node.type == AstNodeType::varDecl) {
 		auto& var_decl= static_cast<const VarDeclNode&>(node);
 		if (var_decl.valueType)
-			return *var_decl.valueType;
+			return traceValue(*var_decl.valueType);
 	} else if (node.type == AstNodeType::call) {
 		auto& call= static_cast<const CallNode&>(node);
 		assert(call.func);
