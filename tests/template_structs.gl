@@ -15,10 +15,8 @@ let main := fn() -> int
 	p.second = 'integer;
 
 	var p2 := Pair[int, int]('integer, 'integer);
-	var p2_double := Pair[int, int]();
-	
-	/// @todo Make compile
-	//var p3 := SomePair();
+	var p3 := Pair[int, int]();
+	var p4 := SomePair();
 
 	return 0;
 };

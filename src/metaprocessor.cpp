@@ -20,7 +20,7 @@ struct Processor {
 	AstContext run()
 	{
 		const AstNode* root= &input.getRootNode();
-		run(root, TplScope{});
+		run(root, newScope());
 		return std::move(output);
 	}
 
@@ -48,10 +48,9 @@ private:
 	struct TplScope {
 		/// Given arguments to tpl struct/function
 		std::vector<TplArg> args;
-		const TplScope* parent= nullptr;
 
 		bool operator<(const TplScope& other) const
-		{ return std::tie(args, parent) < std::tie(other.args, parent); }
+		{ return std::tie(args) < std::tie(other.args); }
 
 		std::string str() const
 		{
@@ -63,28 +62,43 @@ private:
 			return ret;
 		}
 	};
+	TplScope& newScope()
+	{
+		scopeStorage.emplace_back();
+		return scopeStorage.back();
+	}
 
-	/// Output nodes
+	/// Output node creation stack
 	std::stack<AstNode*> nodeStack;
+	std::list<TplScope> scopeStorage;
 	/// Maps input nodes to generated output nodes
 	std::map<const AstNode*, std::map<TplScope, AstNode*>> inToOutNode;
-	/// Used to insert template instantiations in place of original tpl decls
+	/// Maps output tpl block nodes to input tpl block nodes
+	std::map<BlockNode*, const BlockNode*> outToInTpl;
+	/// Used to insert template instantiations in the vicinity of original tpl decls
 	std::map<const TplTypeNode*, BlockNodeIt> tplTypePlaces;
 	/// Keeps track of instantiated templates
 	std::set<std::tuple<const TplTypeNode*, AstNode*>> tplInstances;
+	/// Non-instantiated templates and nodes depending on them
+	/// These aren't going to make it to the ast even though they are output nodes
+	std::set<const AstNode*> astExcluded;
+	int astExclusionScope= 0;
 
 	template <typename T>
-	AstNode* run(const T* node, const TplScope& scope)
+	AstNode* run(const T* node, const TplScope& scope, bool caching= true)
 	{
 		assert(node);
-		return chooseRun(*node, scope);
+		return chooseRun(*node, scope, caching);
 	}
 
-	AstNode* chooseRun(const AstNode& node, const TplScope& scope)
+	AstNode* chooseRun(const AstNode& node, const TplScope& scope, bool caching)
 	{
-		auto already_generated= findOutNodeOf(node, scope);
-		if (already_generated)
-			return already_generated;
+		if (caching) {
+			auto* already_generated= findOutNodeOf(node, scope);
+			if (already_generated) {
+				return already_generated;
+			}
+		}
 
 		AstNode* ret= nullptr;
 		CondRun<AstNodeType::global,        GlobalNode>::eval(*this, node, ret, scope);
@@ -105,31 +119,33 @@ private:
 		CondRun<AstNodeType::label,         LabelNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::comment,       CommentNode>::eval(*this, node, ret, scope);
 		CondRun<AstNodeType::tplType,       TplTypeNode>::eval(*this, node, ret, scope);
-		if (ret) {
+		if (ret && caching) {
 			inToOutNode[&node][scope]= ret;
+			if (astExclusionScope > 0)
+				astExcluded.insert(ret);
 		}
 		return ret;
 	}
 
-	void markTplTypePlace(const TplTypeNode& in_place)
+	void markTplTypePlace(const TplTypeNode& tpl)
 	{
 		AstNode& root= output.getRootNode();
 		assert(root.type == AstNodeType::global);
 		auto& global= static_cast<GlobalNode&>(root);
-		tplTypePlaces[&in_place]= global.nodes.end();
+		tplTypePlaces[&tpl]= global.nodes.end();
 	}
 
-	void tryInsertTplInstance(const TplTypeNode& in_place, AstNode& node)
+	void tryInsertTplInstance(const TplTypeNode& tpl, AstNode& node)
 	{
 		auto&& tpl_inst_identity= 
 			std::make_tuple<const TplTypeNode*, AstNode*>
-				(&in_place, &node);
+				(&tpl, &node);
 		if (	tplInstances.find(tpl_inst_identity) !=
 				tplInstances.end())
 			return;
 		tplInstances.insert(tpl_inst_identity);
 
-		auto place_it= tplTypePlaces.find(&in_place);
+		auto place_it= tplTypePlaces.find(&tpl);
 		assert(place_it != tplTypePlaces.end());
 		auto place= place_it->second;
 		
@@ -146,12 +162,26 @@ private:
 		if (m_it != inToOutNode.end()) {
 			auto& node_map= m_it->second;
 			auto out_it= node_map.find(scope);
-			if (out_it != node_map.end())
+			if (out_it != node_map.end()) {
+				assert(scope.args.size() == out_it->first.args.size());
 				return out_it->second;
+			}
+			if (!scope.args.empty()) {
+				// Check empty scope for non-templates,
+				// because using e.g. `int` is desirable in tpl scope
+				static TplScope empty;
+				auto out_it= node_map.find(empty);
+				if (out_it != node_map.end()) {
+					if (!excludedFromAst(*out_it->second))
+						return out_it->second;
+				}
+			}
 		}
-		if (scope.parent) // Search also from parent scopes
-			return findOutNodeOf(in, *scope.parent);
 		return nullptr;
+	}
+
+	bool excludedFromAst(const AstNode& output_node) {
+		return astExcluded.find(&output_node) != astExcluded.end();
 	}
 
 	AstNode* runSpecific(const GlobalNode& global_in, const TplScope& scope)
@@ -160,7 +190,7 @@ private:
 		nodeStack.push(global_out);
 		for (auto&& node : global_in.nodes) {
 			AstNode* result= run(node, scope);
-			if (result)
+			if (result && !excludedFromAst(*result))
 				global_out->nodes.emplace_back(result);
 		}
 		nodeStack.pop();
@@ -177,7 +207,8 @@ private:
 		// If input id is bound to a tpl parameter,
 		// substitute it with the scope argument
 		for (auto&& arg : scope.args) {
-			if (arg.id == &traceBoundId(id_in, BoundIdDist::nearest)) {
+			/// @todo Pointer comparison
+			if (arg.id->name == id_in.name) {
 				return NONULL(arg.value);
 			}
 		}
@@ -187,8 +218,23 @@ private:
 		
 		if (id_in.boundTo) {
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
-			if (bound_out)
-				id_out->boundTo= bound_out;
+			assert(bound_out);
+			assert(bound_out->type != AstNodeType::identifier);
+			id_out->boundTo= bound_out;
+		} else {
+			auto it= input.idDefs.find(id_in.name);
+			parseCheck(it != input.idDefs.end(), "Unknown id: " + id_in.name);
+			auto& defs= it->second;
+			assert(!defs.empty());
+			/// @todo Allow shadowing
+			//parseCheck(defs.size() < 2, "Multiple ids with the same name: " + id_in.name);
+			id_out->boundTo= findOutNodeOf(*defs.front().idNode->boundTo, scope);
+			if (!id_out->boundTo) {
+				for (auto&& m : defs)
+					std::cout << "IDDD " << m.idNode << "\n";
+			}
+			assert(id_out->boundTo);
+			assert(id_out->boundTo->type != AstNodeType::identifier);
 		}
 		return id_out;
 	}
@@ -196,19 +242,36 @@ private:
 	AstNode* runSpecific(const BlockNode& block_in, const TplScope& scope)
 	{
 		AstNode& parent= *NONULL(nodeStack.top());
-
-		assert(!(block_in.tplType && scope.args.empty()) && "Shouldn't be creating templates");
+		
+		bool uninstantiated_tpl= false;
+		if (block_in.tplType && scope.args.empty())
+			uninstantiated_tpl= true;
 
 		auto block_out= output.newNode<BlockNode>();
 		nodeStack.push(block_out);
-
+		
 		if (parent.type == AstNodeType::varDecl) {
 			auto parent_var= static_cast<VarDeclNode*>(&parent);
 			block_out->boundTo= parent_var->identifier;
+			if (uninstantiated_tpl) {
+				astExcluded.insert(parent_var);
+				astExcluded.insert(parent_var->valueType);
+			}
 		}
 
 		block_out->loop= block_in.loop;
 		block_out->external= block_in.external;
+
+		if (uninstantiated_tpl) {
+			// This block is not a tpl instantiation
+			outToInTpl[block_out]= &block_in;
+			auto result= NONULL(run(block_in.tplType, scope));
+			assert(result->type == AstNodeType::tplType);
+			block_out->tplType= static_cast<TplTypeNode*>(result);
+
+			astExcluded.insert(block_out);
+			++astExclusionScope; // Everything inside is excluded also
+		}
 
 		// These are run also for tpl types!
 		if (block_in.structType) {
@@ -233,40 +296,35 @@ private:
 			block_out->destructor= static_cast<BlockNode*>(result);
 		}
 
+		if (uninstantiated_tpl)
+			--astExclusionScope;
+
 		nodeStack.pop();
 		return block_out;
 	}
 
 	AstNode* runSpecific(const VarDeclNode& var_in, const TplScope& scope)
 	{
-		/// @todo use traceValue
 		bool is_tpl_decl= NONULL(var_in.valueType)->type == AstNodeType::tplType;
-		if (is_tpl_decl && scope.args.empty()) {
-			markTplTypePlace(static_cast<TplTypeNode&>(*var_in.valueType));
-			return nullptr;
-		} 
 
 		auto var_out= output.newNode<VarDeclNode>();
 		nodeStack.push(var_out);
 
 		var_out->constant= var_in.constant;
 		var_out->param= var_in.param;
-
-		if (is_tpl_decl) {
-			var_out->identifier= output.newNode<IdentifierNode>();
-			var_out->identifier->boundTo= var_out;
+		var_out->identifier= output.newNode<IdentifierNode>();
+		var_out->identifier->boundTo= var_out;
+		if (is_tpl_decl && !scope.args.empty()) {
+			// Tpl instance
 			var_out->identifier->name=
-				traceBoundId(var_in, BoundIdDist::furthest).name + "__" + scope.str();
+				traceBoundId(var_in, BoundIdDist::furthest).name
+					+ "__" + scope.str();
 		} else {
-			auto& original_id_in=
-				traceBoundId(*var_in.identifier, BoundIdDist::furthest);
-			auto id_node= run(&original_id_in, scope);
-			assert(id_node->type == AstNodeType::identifier);
-			var_out->identifier= static_cast<IdentifierNode*>(id_node);
-			var_out->identifier->boundTo= var_out;
+			var_out->identifier->name= var_in.identifier->name;
 		}
+		inToOutNode[var_in.identifier][scope]= NONULL(var_out->identifier);
 
-		var_out->valueType= run(var_in.valueType, scope); // null if tpl
+		var_out->valueType= run(var_in.valueType, scope); // Null on tpl instantiation
 		if (var_in.value)
 			var_out->value= NONULL(run(var_in.value, scope));
 
@@ -323,6 +381,11 @@ private:
 	{
 		auto num_out= output.newNode<NumLiteralNode>();
 		num_out->value= num_in.value;
+		
+		auto result= NONULL(run(num_in.builtinDecl, scope));
+		assert(result->type == AstNodeType::varDecl);
+		num_out->builtinDecl= static_cast<VarDeclNode*>(result);
+
 		return num_out;
 	}
 
@@ -361,7 +424,7 @@ private:
 			CallNode call_copy= *static_cast<CallNode*>(op_in.rhs);
 			call_copy.args.emplace(call_copy.args.begin(), op_in.lhs);
 			call_copy.namedArgs.emplace(call_copy.namedArgs.begin(), "");
-			return run(&call_copy, scope);
+			return run(&call_copy, scope, false);
 		}
 
 		auto op_out= output.newNode<BiOpNode>();
@@ -388,28 +451,28 @@ private:
 	AstNode* runSpecific(const CallNode& call_in, const TplScope& scope)
 	{
 		auto deduceTplArgs= []
-		(	const std::vector<VarDeclNode*>& tpl_params,
-			const std::vector<VarDeclNode*>& func_params,
-			const std::vector<AstNode*>& func_args)
+		(	const std::vector<VarDeclNode*>& tpl_params_out,
+			const std::vector<VarDeclNode*>& func_params_out,
+			const std::vector<AstNode*>& func_args_out)
 		-> std::vector<AstNode*>
 		{
-			assert(func_params.size() == func_args.size());
+			assert(func_params_out.size() == func_args_out.size());
 
 			std::vector<AstNode*> tpl_args;
-			for (std::size_t i= 0; i < tpl_params.size(); ++i) {
+			for (std::size_t i= 0; i < tpl_params_out.size(); ++i) {
 				AstNode* deduced_type= nullptr;
 
-				// Scan func_params until tpl_params[i] is found
-				// Then search corresponding func_args for the concrete type
+				// Scan func_params_out until tpl_params_out[i] is found
+				// Then search corresponding func_args_out for the concrete type
 				/// @todo Deeper search, supporting stuff like Array[^Array[?T]]
-				for (std::size_t k= 0; k < func_params.size(); ++k) {
-					auto& func_p= func_params[k];
+				for (std::size_t k= 0; k < func_params_out.size(); ++k) {
+					auto& func_p= func_params_out[k];
 					if (func_p->valueType->type != AstNodeType::identifier)
 						continue;
 					auto& p_id= traceBoundId(*func_p->valueType, BoundIdDist::nearest);
 					/// @todo Pointer check should be enough
-					if ( p_id.name == tpl_params[i]->identifier->name) {
-						deduced_type= &traceType(*NONULL(func_args[k]));
+					if ( p_id.name == tpl_params_out[i]->identifier->name) {
+						deduced_type= &traceType(*NONULL(func_args_out[k]));
 						break;
 					}
 				}
@@ -417,49 +480,54 @@ private:
 				parseCheck(deduced_type, "Couldn't deduce tpl argument");
 				tpl_args.emplace_back(deduced_type);
 			}
-			assert(tpl_args.size() == tpl_params.size());
+			assert(tpl_args.size() == tpl_params_out.size());
 			return tpl_args;
 		};
 
 		auto instantiateTpl= [this]
-		(	const BlockNode& tpl_block,
-			const std::vector<AstNode*>& tpl_args,
+		(	BlockNode& tpl_block_out,
+			const std::vector<AstNode*>& tpl_args_out,
 			const TplScope& scope)
 		-> IdentifierNode*
 		{
-			auto& tpl_params= tpl_block.tplType->params;
-			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
-			assert(tpl_params.size() == tpl_args.size());
+			auto& tpl_block_in= *NONULL(outToInTpl[&tpl_block_out]);
+			auto& tpl_decl_in= *NONULL(NONULL(tpl_block_in.boundTo)->boundTo);
+			auto& tpl_params_in= tpl_block_in.tplType->params;
+			assert(tpl_params_in.size() == tpl_args_out.size());
 
 			// Set up scope for template args
-			TplScope sub_scope;
-			sub_scope.parent= &scope;
-			sub_scope.args.resize(tpl_args.size());
+			TplScope& sub_scope= newScope();
+			sub_scope.args.resize(tpl_args_out.size());
 
-			assert(tpl_args.size() == tpl_params.size());
-			for (std::size_t i= 0; i < tpl_args.size(); ++i) {
-				sub_scope.args[i].id= tpl_params[i]->identifier;
-				sub_scope.args[i].value= NONULL(run(tpl_args[i], scope));
+			assert(tpl_args_out.size() == tpl_params_in.size());
+			for (std::size_t i= 0; i < tpl_args_out.size(); ++i) {
+				sub_scope.args[i].id= tpl_params_in[i]->identifier;
+				sub_scope.args[i].value= tpl_args_out[i];
 			}
 
-			auto tpl_inst= NONULL(run(&tpl_decl, sub_scope));
+			auto tpl_inst= NONULL(run(&tpl_decl_in, sub_scope));
 			assert(tpl_inst->type == AstNodeType::varDecl);
 			auto tpl_inst_decl= static_cast<VarDeclNode*>(tpl_inst);
 
-			tryInsertTplInstance(*tpl_block.tplType, *tpl_inst_decl);
+			assert(tpl_inst_decl->value->type == AstNodeType::block);
+			assert(((BlockNode*)tpl_inst_decl->value)->tplType == nullptr);
+			assert(tpl_inst_decl->valueType->type != AstNodeType::tplType);
+			tryInsertTplInstance(*tpl_block_out.tplType, *tpl_inst_decl);
 
 			return NONULL(tpl_inst_decl->identifier);
 		};
 
-		auto& traced_type= traceType(*call_in.func);
+		auto& traced_type= traceType(*run(call_in.func, scope));
 		// `vector[int]` or `tplCall(123)` == `tplCall[int](123)`
 		if (traced_type.type == AstNodeType::tplType) {
-			AstNode& traced= traceValue(*NONULL(call_in.func));
-			auto& tpl_block= static_cast<const BlockNode&>(traced);
-			assert(tpl_block.tplType);
-			auto& tpl_params= tpl_block.tplType->params;
-			auto& tpl_decl= *NONULL(NONULL(tpl_block.boundTo)->boundTo);
-			assert(tpl_decl.type == AstNodeType::varDecl);
+			AstNode& traced= traceValue(*NONULL(run(call_in.func, scope)));
+			assert(traced.type == AstNodeType::block);
+			auto& tpl_block_out= static_cast<BlockNode&>(traced);
+			assert(tpl_block_out.tplType);
+			auto& tpl_params= tpl_block_out.tplType->params;
+			std::vector<AstNode*> call_args_out;
+			for (auto&& arg : call_in.args)
+				call_args_out.emplace_back(NONULL(run(arg, scope)));
 
 			if (call_in.squareCall) { // `vector[int]`
 				// Ordinary tpl call
@@ -467,18 +535,18 @@ private:
 				std::vector<int> tpl_routing;
 				routeCallArgs(	implicit_tpl_args,
 								tpl_routing,
-								*call_in.func,
+								*NONULL(run(call_in.func, scope)),
 								call_in.namedArgs);
-				auto tpl_args_in=
+				auto tpl_args_out=
 					resolveRouting(
-							joined(listToVec(call_in.args), implicit_tpl_args),
+							joined(call_args_out, implicit_tpl_args),
 							tpl_routing);		
-				return instantiateTpl(tpl_block, tpl_args_in, scope);
+				return instantiateTpl(tpl_block_out, tpl_args_out, scope);
 			} else { // `print(10)` == `print[int](10)`
 				// Call includes implicit tpl call (tpl deduction)
 
-				assert(tpl_block.funcType);
-				auto& func_type_node= traceValue(*tpl_block.funcType);
+				assert(tpl_block_out.funcType);
+				auto& func_type_node= traceValue(*tpl_block_out.funcType);
 				assert(func_type_node.type == AstNodeType::funcType);
 				auto& func_type= static_cast<FuncTypeNode&>(func_type_node);
 
@@ -489,15 +557,15 @@ private:
 								func_type,
 								call_in.namedArgs);
 				std::vector<AstNode*> all_args=
-					resolveRouting(	joined(listToVec(call_in.args), implicit_args),
+					resolveRouting(	joined(call_args_out, implicit_args),
 									routing);
 
-				auto tpl_args_in=
+				auto tpl_args_out=
 					deduceTplArgs(	tpl_params,
 									listToVec(func_type.params),
 									all_args);
 
-				auto tpl_instance_id= instantiateTpl(tpl_block, tpl_args_in, scope);
+				auto tpl_instance_id= instantiateTpl(tpl_block_out, tpl_args_out, scope);
 				
 				// Template has been created but not the actual fn call
 				auto fn_call= output.newNode<CallNode>();
@@ -567,11 +635,19 @@ private:
 		return comment_out;
 	}
 
-	AstNode* runSpecific(const TplTypeNode& tpl, const TplScope& scope)
+	AstNode* runSpecific(const TplTypeNode& tpl_in, const TplScope& scope)
 	{
-		assert(!scope.args.empty());
-		// Block after tpl decl takes care of creating correct concrete type
-		return nullptr;
+		if (!scope.args.empty())
+			return nullptr; // Tpl instance shouldn't have tpl type
+
+		auto tpl_out= output.newNode<TplTypeNode>();
+		for (auto&& p : tpl_in.params) {
+			auto result= NONULL(run(p, scope));
+			assert(result->type == AstNodeType::varDecl);
+			tpl_out->params.emplace_back(static_cast<VarDeclNode*>(result));
+		}
+		markTplTypePlace(static_cast<TplTypeNode&>(*tpl_out));
+		return tpl_out;
 	}
 
 	template <AstNodeType nodeType, typename T>

@@ -1,11 +1,10 @@
-// Debug
-#include <iostream>
-
-#include <map>
-#include <type_traits>
-
 #include "ast.hpp"
 #include "nullsafety.hpp"
+
+#include <type_traits>
+
+// Debug
+#include <iostream>
 
 namespace gamelang
 {
@@ -188,7 +187,7 @@ struct Parser {
 
 			IdDef id_def;
 			id_def.idNode= builtin_id;
-			idDefs[name].emplace_back(id_def);
+			context.idDefs[name].emplace_back(id_def);
 		}
 
 		// Start parsing
@@ -200,18 +199,11 @@ struct Parser {
 	}
 
 private:
-	/// Declaration of identifier
-	struct IdDef {
-		IdentifierNode* idNode= nullptr;
-		//BlockNode* enclosingBlock= nullptr;
-	};
-
 	const Tokens& tokens;
 	Tokens::const_iterator token;
 	AstContext context;
-	/// id-string to all matching IdDefs
-	std::map<std::string, std::vector<IdDef>> idDefs;
 
+	using IdDef= AstContext::IdDef;
 	using It= Tokens::const_iterator;
 	template <typename T>
 	using UPtr= std::unique_ptr<T>;
@@ -254,6 +246,18 @@ private:
 		parseCheck(false, "Unable to deduce type");
 	}
 
+	VarDeclNode& getBuiltinDecl(const std::string& str)
+	{
+		auto it= context.idDefs.find(str);
+		parseCheck(it != context.idDefs.end(), "Builtin id not found");
+		const std::vector<IdDef>& defs= it->second;
+		parseCheck(defs.size() == 1, "Multiple definitions for a builtin");
+		IdentifierNode* id= NONULL(defs.front().idNode);
+		parseCheck(	id->boundTo && id->boundTo->type == AstNodeType::varDecl,
+					"Builtin corrupted");
+		return *static_cast<VarDeclNode*>(id->boundTo);
+	}
+
 	NumLiteralNode* parseNumLiteral(const std::string& text)
 	{
 		auto literal= newNode<NumLiteralNode>();
@@ -265,20 +269,7 @@ private:
 		literal->literalType= lit_type;
 		literal->value= text;
 		log(literal->value);
-
-		auto getBuiltinDecl= [&] (NumLiteralType t)
-			-> VarDeclNode*
-		{
-			auto it= idDefs.find(str(t));
-			parseCheck(it != idDefs.end(), "Builtin id not found");
-			const std::vector<IdDef>& defs= it->second;
-			parseCheck(defs.size() == 1, "Multiple definitions for a builtin");
-			IdentifierNode* id= NONULL(defs.front().idNode);
-			parseCheck(	id->boundTo && id->boundTo->type == AstNodeType::varDecl,
-						"Builtin corrupted");
-			return static_cast<VarDeclNode*>(id->boundTo);
-		};
-		literal->builtinDecl= getBuiltinDecl(literal->literalType);
+		literal->builtinDecl= &getBuiltinDecl(str(literal->literalType));
 
 		return literal;
 	}
@@ -304,7 +295,7 @@ private:
 
 		IdDef id_def;
 		id_def.idNode= var->identifier;
-		idDefs[var_name].emplace_back(id_def);
+		context.idDefs[var_name].emplace_back(id_def);
 
 		if (token->type != TokenType::assign) { // Explicit type
 			match(TokenType::declaration, "Expected :");
@@ -565,6 +556,7 @@ private:
 		auto literal= newNode<NumLiteralNode>();
 		literal->literalType= NumLiteralType::bool_;
 		literal->value= value ? "true" : "false";
+		literal->builtinDecl= &getBuiltinDecl(str(NumLiteralType::bool_));
 		return literal;
 	}
 
@@ -717,164 +709,6 @@ private:
 	}
 };
 
-/// Ties unbound identifiers of the ast tree (making a graph)
-/// Goal is to have zero unbound identifiers after tying
-struct TieIdentifiers {
-	TieIdentifiers(AstContext& ctx): context(ctx) {}
-
-	void tie()
-	{
-		/// @todo Scan ast first for declarations and loose-end identifiers
-		///       to allow cyclic references to be resolved
-		AstNode* root= &context.getRootNode();
-		tie(root);
-	}
-
-private:
-	AstContext& context;
-
-	/// @todo Take scope into account
-	/// Can be var decls or labels
-	std::map<std::string, AstNode*> idTargets;
-
-	/// Parent substitutes previously tied node with this
-	AstNode* substitution= nullptr;
-
-	template <typename T>
-	void tie(T*& node)
-	{
-		assert(node);
-		assert(!substitution);
-
-		chooseTie(*node);
-
-		if (substitution) {
-			assert((substitution->type == node->type || 
-					std::is_same<T, AstNode>::value));
-
-			node= static_cast<T*>(substitution);
-			substitution= nullptr;
-		}
-	}
-
-	void chooseTie(AstNode& node)
-	{
-		CondTie<AstNodeType::global,        GlobalNode>::eval(*this, node);
-		CondTie<AstNodeType::identifier,    IdentifierNode>::eval(*this, node);
-		CondTie<AstNodeType::block,         BlockNode>::eval(*this, node);
-		CondTie<AstNodeType::varDecl,       VarDeclNode>::eval(*this, node);
-		CondTie<AstNodeType::funcType,      FuncTypeNode>::eval(*this, node);
-		CondTie<AstNodeType::numLiteral,    NumLiteralNode>::eval(*this, node);
-		CondTie<AstNodeType::uOp,           UOpNode>::eval(*this, node);
-		CondTie<AstNodeType::biOp,          BiOpNode>::eval(*this, node);
-		CondTie<AstNodeType::ctrlStatement, CtrlStatementNode>::eval(*this, node);
-		CondTie<AstNodeType::call,          CallNode>::eval(*this, node);
-		CondTie<AstNodeType::label,         LabelNode>::eval(*this, node);
-		CondTie<AstNodeType::tplType,       TplTypeNode>::eval(*this, node);
-	}
-
-	void tieSpecific(GlobalNode& global)
-	{
-		for (auto&& node : global.nodes) {
-			tie(node);
-		}
-	}
-
-	void tieSpecific(IdentifierNode& identifier)
-	{
-		if (identifier.boundTo)
-			return;
-		
-		auto it= idTargets.find(identifier.name);
-		parseCheck(it != idTargets.end(), "Unresolved identifier: " + identifier.name);
-		
-		AstNode* var= it->second;
-		identifier.boundTo= var;
-	}
-
-	void tieSpecific(BlockNode& block)
-	{
-		if (block.funcType)
-			tie(block.funcType);
-		if (block.condition)
-			tie(block.condition);
-		for (auto&& node : block.nodes) {
-			tie(node);
-		}
-		if (block.destructor)
-			tie(block.destructor);
-	}
-
-	void tieSpecific(VarDeclNode& var)
-	{
-		assert(NONULL(var.identifier)->boundTo &&
-				"Variable identifiers should be bound by definition");
-
-		// Loose identifiers can be bound to `var`
-		if (idTargets.find(NONULL(var.identifier)->name) == idTargets.end())
-			idTargets[NONULL(var.identifier)->name]= &var;
-
-		tie(var.valueType);
-		if (var.value)
-			tie(var.value);
-	}
-
-	void tieSpecific(FuncTypeNode& func)
-	{
-		for (auto&& node : func.params)
-			tie(node);
-		tie(func.returnType);
-	}
-
-	void tieSpecific(NumLiteralNode& num)
-	{
-
-	}
-
-	void tieSpecific(UOpNode& op)
-	{
-		tie(op.target);
-	}
-
-	void tieSpecific(BiOpNode& op)
-	{
-		tie(op.lhs);
-		tie(op.rhs);
-	}
-
-	void tieSpecific(CtrlStatementNode& ret)
-	{
-		if (ret.value)
-			tie(ret.value);
-	}
-
-	void tieSpecific(CallNode& call)
-	{
-		tie(call.func);
-		for (auto&& arg : call.args) {
-			tie(arg); 
-		}
-	}
-
-	void tieSpecific(LabelNode& label)
-	{
-		idTargets[NONULL(label.identifier)->name]= &label;
-		tie(label.identifier);
-	}
-
-	void tieSpecific(TplTypeNode& tpe)
-	{
-		for (auto&& node : tpe.params)
-			tie(node);
-	}
-
-	template <AstNodeType nodeType, typename T>
-	struct CondTie {
-		static void eval(TieIdentifiers& self, AstNode& node)
-		{ if (node.type == nodeType) self.tieSpecific(static_cast<T&>(node)); }
-	};
-};
-
 } // anonymous
 
 AstContext::AstContext()
@@ -925,6 +759,8 @@ const AstNode& traceValue(const AstNode& node)
 	} else if (node.type == AstNodeType::numLiteral) {
 		auto& num= static_cast<const NumLiteralNode&>(node);
 		return num;
+	} else if (node.type == AstNodeType::tplType) {
+		return node;
 	}
 
 	parseCheck(false, "Unable to trace value");
@@ -1182,9 +1018,6 @@ AstContext genAst(const Tokens& tokens)
 {
 	Parser parser{tokens};
 	AstContext&& ctx= parser.parse();
-
-	TieIdentifiers t{ctx};
-	t.tie();
 	return std::move(ctx);
 }
 

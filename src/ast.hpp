@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 
 #include "nullsafety.hpp"
 #include "token.hpp"
@@ -328,6 +329,15 @@ struct AstContext {
 		nodes.emplace_back(std::unique_ptr<T>(new T{}));
 		return static_cast<T*>(nodes.back().get());
 	}
+
+	/// Declaration info of an identifier in ast
+	struct IdDef {
+		IdentifierNode* idNode= nullptr;
+		//BlockNode* enclosingBlock= nullptr;
+	};
+
+	/// id-string -> all matching IdDefs
+	std::map<std::string, std::vector<IdDef>> idDefs;
 
 private:
 	/// First should be the GlobalNode
