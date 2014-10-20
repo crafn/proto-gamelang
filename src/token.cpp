@@ -60,6 +60,10 @@ TokenType doubleCharTokenType(char ch1, char ch2)
 		return TokenType::rightInsert;
 	if (ch1 == '=' && ch2 == '>')
 		return TokenType::rdArrow;
+	if (ch1 == '<' && ch2 == '=')
+		return TokenType::leq;
+	if (ch1 == '>' && ch2 == '=')
+		return TokenType::geq;
 
 	return TokenType::unknown;
 }

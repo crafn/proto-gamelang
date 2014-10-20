@@ -32,6 +32,8 @@ enum class TokenType {
 	nequals, // !=
 	less, // <
 	greater, // >
+	leq, // <=
+	geq, // >=
 	add, // +
 	sub, // -
 	mul, // *
@@ -88,6 +90,8 @@ static const char* enumStr(TokenType type)
 		case TokenType::nequals: return "nequals";
 		case TokenType::less: return "less";
 		case TokenType::greater: return "greater";
+		case TokenType::leq: return "leq";
+		case TokenType::geq: return "geq";
 		case TokenType::add: return "add";
 		case TokenType::sub: return "sub";
 		case TokenType::mul: return "mul";
@@ -147,6 +151,8 @@ static const char* str(TokenType type)
 		case TokenType::nequals: return "!=";
 		case TokenType::less: return "<";
 		case TokenType::greater: return ">";
+		case TokenType::leq: return "<=";
+		case TokenType::geq: return ">=";
 		case TokenType::add: return "+";
 		case TokenType::sub: return "-";
 		case TokenType::mul: return "*";

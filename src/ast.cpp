@@ -89,6 +89,8 @@ Bp tokenLbp(TokenType t)
 		case TokenType::nequals:      return Bp::comp;
 		case TokenType::less:         return Bp::comp;
 		case TokenType::greater:      return Bp::comp;
+		case TokenType::leq:          return Bp::comp;
+		case TokenType::geq:          return Bp::comp;
 		case TokenType::add:          return Bp::sum;
 		case TokenType::sub:          return Bp::sum;
 		case TokenType::mul:          return Bp::prod;

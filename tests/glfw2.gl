@@ -42,8 +42,6 @@ let Array := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo Proper name lookup
-/// @todo ++, <=, >= operators
 /// @todo for-loop
 /// @todo fix deref binding power
 let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
@@ -52,7 +50,7 @@ let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
 	var new_data : ^U = malloc(sizeof(U)*(vec->size + 1));
 	var i : int = 0;
 	loop {
-		if (i + 1 > vec->size)
+		if (i >= vec->size)
 			{ break; }
 		new_data[i]= vec->data[i];
 		i = i + 1;

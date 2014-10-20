@@ -6,9 +6,9 @@ let main := fn () -> int
 		foo();
 	}
 
-	if (a == 4) {
+	if (a > 4) {
 		a = 5;
-	} else if (a == 5) {
+	} else if (a <= 5) {
 		foo();
 	} else {
 		a = 6;
