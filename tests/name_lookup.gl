@@ -1,0 +1,14 @@
+let stars : ?char = "***";
+let Sky := struct
+{
+	var stars: int = 16;
+};
+
+let create := tpl[T: struct] -> fn() -> T { T() };
+let incremented := tpl[T: struct] -> fn(arg: T) -> T { arg + 1 };
+
+let main := fn() -> int
+{
+	incremented(create[Sky]().stars);
+	return 0;
+};

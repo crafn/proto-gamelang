@@ -807,7 +807,7 @@ const AstNode& traceType(const AstNode& node)
 			if (block.structType) {
 				return block; // ctor call
 			} else if (block.funcType) {
-				assert(0 && "@todo");
+				return traceValue(*NONULL(block.funcType->returnType));
 			}
 		} else {
 			parseCheck(false, "Unable to trace type (call)");

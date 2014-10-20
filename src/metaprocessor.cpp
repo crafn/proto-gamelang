@@ -80,14 +80,19 @@ private:
 	std::map<BlockNode*, const BlockNode*> outToInTpl;
 	/// Used to insert template instantiations in the vicinity of original tpl decls
 	std::map<const TplTypeNode*, BlockNodeIt> tplTypePlaces;
-	/// Maps output block to tpl scope used on instantiation
-	std::map<BlockNode*, const TplScope*> tplScopeByBlock;
 	/// Keeps track of instantiated templates
 	std::set<std::tuple<const TplTypeNode*, AstNode*>> tplInstances;
 	/// Contains non-instantiated templates and nodes depending on them
 	/// These aren't going to make it to the ast even though they are output nodes
 	std::set<const AstNode*> astExcluded;
 	int astExclusionScope= 0;
+
+	BlockNode* getLookupBlock()
+	{
+		if (lookupStack.empty())
+			return nullptr;
+		return lookupStack.top();
+	}
 
 	template <typename T>
 	AstNode* run(const T* node, const TplScope& scope, bool caching= true)
@@ -192,7 +197,6 @@ private:
 	AstNode* runSpecific(const GlobalNode& global_in, const TplScope& scope)
 	{
 		auto global_out= output.newNode<GlobalNode>();
-		tplScopeByBlock[nullptr]= &scope;
 		nodeStack.push(global_out);
 		for (auto&& node : global_in.nodes) {
 			AstNode* result= run(node, scope);
@@ -222,41 +226,36 @@ private:
 		auto id_out= output.newNode<IdentifierNode>();
 		id_out->name= id_in.name;
 		
-		// Bind newly created id with the help of input id
+		// Bind newly created id with the help of the input id
 		if (id_in.boundTo) {
+			// Not sure if this is needed; var id is processed at run(var)
 			AstNode* bound_out= findOutNodeOf(*NONULL(id_in.boundTo), scope);
 			assert(bound_out);
 			assert(bound_out->type != AstNodeType::identifier);
 			id_out->boundTo= bound_out;
+
+			AstContext::IdDef def;
+			def.idNode= id_out;
+			def.enclosing= getLookupBlock();
+			output.idDefs[id_in.name].emplace_back(def);
 		} else { // Perform name lookup
-			auto it= input.idDefs.find(id_in.name);
-			parseCheck(	it != input.idDefs.end(),
+			auto it= output.idDefs.find(id_in.name);
+			parseCheck(	it != output.idDefs.end(),
 						"Unknown identifier: " + id_in.name);
 			auto& defs= it->second;
 			assert(!defs.empty());
 			
-			BlockNode* search_block_out= nullptr;
-			if (!lookupStack.empty())
-				search_block_out= lookupStack.top();
-
-			const IdentifierNode* name_in= nullptr;
+			BlockNode* search_block_out= getLookupBlock();
+			const IdentifierNode* name_out= nullptr;
 			int match_count= 0;
 			while (1) {
 				for (auto&& id_def : defs) {
-					std::cout << "  SEARCHING DEF " << id_def.idNode->name << "\n";
-					std::cout << "  enclosing " << id_def.enclosing << "\n";
-					std::cout << "  scope size " << scope.args.size() << "\n\n";
-					auto* tpl_scope= tplScopeByBlock[search_block_out];
-					assert(tpl_scope || !search_block_out);
-					if (	(!id_def.enclosing && !search_block_out) ||
-							(	id_def.enclosing && tpl_scope &&
-								findOutNodeOf(*NONULL(id_def.enclosing), *NONULL(tpl_scope)) ==
-								search_block_out)) {
-						name_in= NONULL(id_def.idNode);
+					if (id_def.enclosing == search_block_out) {
+						name_out= NONULL(id_def.idNode);
 						++match_count;
 					}
 				}
-				if (name_in)
+				if (name_out)
 					break;
 				else if (search_block_out)
 					search_block_out= search_block_out->enclosing;
@@ -264,11 +263,11 @@ private:
 					break; // Not found
 			}
 
-			parseCheck(name_in, "Name lookup failed: " + id_in.name);
+			parseCheck(name_out, "Name lookup failed: " + id_in.name);
 			parseCheck(	match_count < 2,
 						"Multiple ids with the same name: " + id_in.name);
 
-			id_out->boundTo= findOutNodeOf(*NONULL(name_in->boundTo), scope);
+			id_out->boundTo= name_out->boundTo;
 			assert(id_out->boundTo);
 			assert(id_out->boundTo->type != AstNodeType::identifier);
 		}
@@ -284,11 +283,10 @@ private:
 			uninstantiated_tpl= true;
 
 		auto block_out= output.newNode<BlockNode>();
-		if (!lookupStack.empty())
-			block_out->enclosing= lookupStack.top();
-		tplScopeByBlock[block_out]= &scope;
+		block_out->enclosing= getLookupBlock();
 		nodeStack.push(block_out);
-		lookupStack.push(block_out);
+		if (!block_in.external)
+			lookupStack.push(block_out);
 
 		if (parent.type == AstNodeType::varDecl) {
 			auto parent_var= static_cast<VarDeclNode*>(&parent);
@@ -319,7 +317,9 @@ private:
 			assert(result->type == AstNodeType::structType);
 			block_out->structType= static_cast<StructTypeNode*>(result);
 		} else if (block_in.funcType) {
-			block_out->funcType= NONULL(run(block_in.funcType, scope));
+			auto result= NONULL(run(block_in.funcType, scope));
+			assert(result->type == AstNodeType::funcType);
+			block_out->funcType= static_cast<FuncTypeNode*>(result);
 		} else if (block_in.condition) {
 			block_out->condition= NONULL(run(block_in.condition, scope));
 		}
@@ -339,7 +339,8 @@ private:
 		if (uninstantiated_tpl)
 			--astExclusionScope;
 
-		lookupStack.pop();
+		if (!block_in.external)
+			lookupStack.pop();
 		nodeStack.pop();
 		return block_out;
 	}
@@ -365,18 +366,28 @@ private:
 			def.idNode= var_out->identifier;
 			def.enclosing= nullptr; // Instantiated tpl types have global scope
 			output.idDefs[var_out->identifier->name].emplace_back(def);
-			std::cout << "CREATED ID DEF " << var_out->identifier->name << "\n";
 		} else {
+			// Ordinary var
 			var_out->identifier->name= var_in.identifier->name;
+
+			AstContext::IdDef def;
+			def.idNode= var_out->identifier;
+			def.enclosing= getLookupBlock();
+			output.idDefs[var_out->identifier->name].emplace_back(def);
 		}
 		inToOutNode[var_in.identifier][scope]= NONULL(var_out->identifier);
 
-		var_out->valueType= run(var_in.valueType, scope); // Null on tpl instantiation
+		bool var_value_run_takes_care_of_type_run=
+			var_in.value && var_in.value->type == AstNodeType::block;
+
+		if (!var_value_run_takes_care_of_type_run)
+			var_out->valueType= run(var_in.valueType, scope); // Null on tpl instantiation
 		if (var_in.value)
 			var_out->value= NONULL(run(var_in.value, scope));
 
 		if (var_out->valueType == nullptr) {
-			assert(var_out->value && "Can't have both null type and null value");
+			assert(	var_out->value &&
+					"Can't have both null type and null value");
 			var_out->valueType= &traceType(*var_out->value);
 		}
 
@@ -487,7 +498,6 @@ private:
 				auto uop= static_cast<UOpNode*>(deref_type);
 				if (	uop->opType == UOpType::pointer ||
 						uop->opType == UOpType::reference) {
-					std::cout <<" LHS PTR UOP\n";
 					deref_type= &traceValue(*uop->target);
 				}
 			}

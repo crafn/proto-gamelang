@@ -76,6 +76,7 @@ struct AstNode {
 	AstNodeType type;
 
 	AstNode(AstNodeType t): type(t) {}
+	/// @todo Remove
 	virtual std::vector<AstNode*> getSubNodes() const = 0;
 	virtual ~AstNode() {}
 };
@@ -105,6 +106,7 @@ struct IdentifierNode final : AstNode {
 };
 
 struct StructTypeNode;
+struct FuncTypeNode;
 struct TplTypeNode;
 /// `{ ... }`
 struct BlockNode final : AstNode {
@@ -114,7 +116,7 @@ struct BlockNode final : AstNode {
 	bool loop= false;
 	bool external= false; /// FFI
 	StructTypeNode* structType= nullptr;
-	AstNode* funcType= nullptr;
+	FuncTypeNode* funcType= nullptr;
 	TplTypeNode* tplType= nullptr; /// Used if block is a template
 	AstNode* condition= nullptr;
 	BlockNode* destructor= nullptr;
@@ -123,9 +125,8 @@ struct BlockNode final : AstNode {
 	BlockNode(): AstNode(AstNodeType::block) {}
 	std::vector<AstNode*> getSubNodes() const override
 	{
+		assert(0 && "Incomplete");
 		auto ret= listToVec(nodes);
-		ret.push_back(funcType);
-		ret.push_back(condition);
 		return ret;
 	}
 };
