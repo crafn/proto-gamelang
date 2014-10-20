@@ -147,6 +147,9 @@ private:
 
 	void tryInsertTplInstance(const TplTypeNode& tpl, AstNode& node)
 	{
+		if (astExclusionScope > 0)
+			return;
+
 		auto&& tpl_inst_identity= 
 			std::make_tuple<const TplTypeNode*, AstNode*>
 				(&tpl, &node);
@@ -277,7 +280,7 @@ private:
 	AstNode* runSpecific(const BlockNode& block_in, const TplScope& scope)
 	{
 		AstNode& parent= *NONULL(nodeStack.top());
-		
+
 		bool uninstantiated_tpl= false;
 		if (block_in.tplType && scope.args.empty())
 			uninstantiated_tpl= true;
@@ -302,13 +305,13 @@ private:
 
 		if (uninstantiated_tpl) {
 			// This block is not a tpl instantiation
+			astExcluded.insert(block_out);
+			++astExclusionScope; // Everything inside is excluded also
+
 			outToInTpl[block_out]= &block_in;
 			auto result= NONULL(run(block_in.tplType, scope));
 			assert(result->type == AstNodeType::tplType);
 			block_out->tplType= static_cast<TplTypeNode*>(result);
-
-			astExcluded.insert(block_out);
-			++astExclusionScope; // Everything inside is excluded also
 		}
 
 		// These are run also for tpl types!
