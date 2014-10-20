@@ -1,23 +1,29 @@
 // Compiling: ./compiler ./tests/glfw2.gl -lglfw -lGL
 
 // GLFW
-let GLFW_WINDOW : int = 0x00010001;
+let GLFW_WINDOW := 0x00010001;
 extern {
-	let glfwInit : fn() -> int;
-	let glfwTerminate : fn();
-	let glfwOpenWindow : fn(w: int, h: int, r: int, g: int, b: int, a: int,
+	let glfwInit: fn() -> int;
+	let glfwTerminate: fn();
+	let glfwOpenWindow: fn(	w: int, h: int, r: int, g: int, b: int, a: int,
 							d: int, s: int, mode: int) -> ?void;
-	let glfwSetWindowTitle : fn(str: ?char);
-	let glfwSwapBuffers : fn();
-	let glfwSleep : fn(seconds: f32);
+	let glfwSetWindowTitle: fn(str: ?char);
+	let glfwSwapBuffers: fn();
+	let glfwSleep: fn(seconds: f32);
 }
 
 // OpenGL
-let GL_COLOR_BUFFER_BIT : int = 16384;
+let GL_COLOR_BUFFER_BIT := 16384;
+let GL_QUADS := 7;
 extern {
-	let glClearColor : fn(r: f32, g: f32, b: f32, a: f32);
-	let glClear : fn(bits : int);
+	let glClearColor: fn(r: f32, g: f32, b: f32, a: f32);
+	let glClear: fn(bits : int);
+	let glBegin: fn(mode : int);
+	let glEnd: fn();
+	let glVertex2f: fn(x: f32, y: f32);
+	let glLoadIdentity: fn();
 }
+
 
 // libc
 extern {
@@ -32,7 +38,8 @@ let Vec2 := tpl[V: struct] -> struct
 	var y: V = 0;
 };
 
-let Vec2i := Vec2[int];
+let Vec2i := Vec2[i32];
+let Vec2f := Vec2[f32];
 
 let Array := tpl[T: struct] -> struct
 {
@@ -42,13 +49,11 @@ let Array := tpl[T: struct] -> struct
 	free(data);
 };
 
-/// @todo for-loop
-/// @todo fix deref binding power
 let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
 {
 	// Naive implementation
 	var new_data : ^U = malloc(sizeof(U)*(vec->size + 1));
-	var i : int = 0;
+	var i := 0;
 	loop {
 		if (i >= vec->size)
 			{ break; }
@@ -59,7 +64,31 @@ let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
 
 	free(vec->data);
 	vec->data = new_data;
-	vec->size = vec->size + 1;
+	vec->size += 1;
+};
+
+let drawQuad := fn(pos: Vec2f, rad: Vec2f)
+{
+	var ll := Vec2f(pos.x - rad.x, pos.y - rad.y);
+	var ur := Vec2f(pos.x + rad.x, pos.y + rad.y);
+	glBegin(GL_QUADS);
+		glVertex2f(ll.x, ll.y);
+		glVertex2f(ur.x, ll.y);
+		glVertex2f(ur.x, ur.y);
+		glVertex2f(ll.x, ur.y);
+	glEnd();
+};
+
+var timer : f32 = 0.0;
+let render := fn()
+{
+	glClear(GL_COLOR_BUFFER_BIT);
+
+	glLoadIdentity();
+	drawQuad(Vec2f(timer, 0.0), Vec2f(0.3, 0.3));
+	timer += 0.01;
+
+	glfwSwapBuffers();
 };
 
 let main := fn() -> int
@@ -67,20 +96,12 @@ let main := fn() -> int
 	if (glfwInit() == 0)
 		{ return 1; }
 
-	glfwOpenWindow(400, 300, 0,0,0,0,0,0, GLFW_WINDOW);
+	glfwOpenWindow(600, 600, 0,0,0,0,0,0, GLFW_WINDOW);
 	glfwSetWindowTitle("gamelang");
-
-	var v := Vec2[int](.x= 10, .y= 20);
-	var v2 := Vec2i(.x= 1);
-
-	var vec := Array[Vec2i]();
-	push('vec, v);
-	'vec.>push(v);
 
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	loop {
-		glClear(GL_COLOR_BUFFER_BIT);
-		glfwSwapBuffers();
+		render();
 		glfwSleep(0.001);
 	};
 
