@@ -95,15 +95,14 @@ let update := fn(game: ^GameState)
 
 	if (glfwGetKey(GLFW_KEY_D))
 	{ game->playerPos.x += spd; }
-	return; /// @todo Fix
 };
 
 let render := fn(game: ^GameState)
 {
 	glClearColor(0.5, 0.5, 0.3, 0.0);
 	glClear(GL_COLOR_BUFFER_BIT);
-
 	glLoadIdentity();
+
 	drawQuad(game->playerPos, Vec2f(0.1, 0.1));
 
 	glfwSwapBuffers();
@@ -119,8 +118,8 @@ let main := fn() -> int
 
 	var game := GameState();
 	loop {
-		update('game);
-		render('game);
+		'game.>update();
+		'game.>render();
 		glfwSleep(0.001);
 	};
 

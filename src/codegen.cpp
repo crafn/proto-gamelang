@@ -107,9 +107,11 @@ private:
 				if (node.type == AstNodeType::varDecl)
 					emit(row_prefix);
 
-				if (	std::next(it) == block.nodes.end() && 
+				if (	block.funcType &&
+						std::next(it) == block.nodes.end() && 
 						node.type != AstNodeType::endStatement &&
-						block.funcType) {
+						node.type != AstNodeType::block // Prevents `return if`
+					) {
 					emit("return ");
 					gen(node);
 					emit(";\n");
