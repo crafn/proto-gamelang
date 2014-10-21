@@ -89,7 +89,13 @@ let GameState := struct
 
 let update := fn(game: ^GameState)
 {
-	game->playerPos.x += 0.01;
+	let spd := 0.03;
+	if (glfwGetKey(GLFW_KEY_A))
+	{ game->playerPos.x -= spd; }
+
+	if (glfwGetKey(GLFW_KEY_D))
+	{ game->playerPos.x += spd; }
+	return; /// @todo Fix
 };
 
 let render := fn(game: ^GameState)
@@ -98,7 +104,7 @@ let render := fn(game: ^GameState)
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glLoadIdentity();
-	drawQuad(game->playerPos, Vec2f(0.3, 0.3));
+	drawQuad(game->playerPos, Vec2f(0.1, 0.1));
 
 	glfwSwapBuffers();
 };
