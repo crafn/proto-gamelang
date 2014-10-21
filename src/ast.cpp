@@ -1023,11 +1023,15 @@ void routeCallArgs(	std::vector<AstNode*>& implicit,
 std::vector<AstNode*> resolveRouting(	const std::vector<AstNode*>& args,
 										const std::vector<int>& routing)
 {
+	if (routing.empty())
+		return args;
+
 	std::vector<AstNode*> new_args;
 	new_args.resize(args.size());
 	std::size_t i= 0;
 	auto setNextArg= [&] (AstNode* arg)
 	{
+		assert(i < routing.size());
 		int param_i= routing[i];
 		assert(param_i >= 0 && param_i < new_args.size());
 		new_args[param_i]= arg;

@@ -2,6 +2,8 @@
 
 // GLFW
 let GLFW_WINDOW := 0x00010001;
+let GLFW_KEY_A := 65;
+let GLFW_KEY_D := 68;
 extern {
 	let glfwInit: fn() -> int;
 	let glfwTerminate: fn();
@@ -10,6 +12,7 @@ extern {
 	let glfwSetWindowTitle: fn(str: ?char);
 	let glfwSwapBuffers: fn();
 	let glfwSleep: fn(seconds: f32);
+	let glfwGetKey: fn(key: int) -> int;
 }
 
 // OpenGL
@@ -79,14 +82,23 @@ let drawQuad := fn(pos: Vec2f, rad: Vec2f)
 	glEnd();
 };
 
-var timer : f32 = 0.0;
-let render := fn()
+let GameState := struct
 {
+	var playerPos := Vec2f(0.0, 0.0);
+};
+
+let update := fn(game: ^GameState)
+{
+	game->playerPos.x += 0.01;
+};
+
+let render := fn(game: ^GameState)
+{
+	glClearColor(0.5, 0.5, 0.3, 0.0);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	glLoadIdentity();
-	drawQuad(Vec2f(timer, 0.0), Vec2f(0.3, 0.3));
-	timer += 0.01;
+	drawQuad(game->playerPos, Vec2f(0.3, 0.3));
 
 	glfwSwapBuffers();
 };
@@ -99,9 +111,10 @@ let main := fn() -> int
 	glfwOpenWindow(600, 600, 0,0,0,0,0,0, GLFW_WINDOW);
 	glfwSetWindowTitle("gamelang");
 
-	glClearColor(0.5, 0.5, 0.3, 0.0);
+	var game := GameState();
 	loop {
-		render();
+		update('game);
+		render('game);
 		glfwSleep(0.001);
 	};
 

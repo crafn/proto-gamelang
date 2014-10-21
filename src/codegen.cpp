@@ -344,6 +344,8 @@ private:
 	{ return "ctor___" + type_name; }
 	std::string dtorName(std::string type_name) const
 	{ return "dtor___" + type_name; }
+	std::string selfName() const
+	{ return clashPrevention() + "self"; }
 
 	template <typename T>
 	void mod(T*& node, ModScope& scope)
@@ -461,7 +463,7 @@ private:
 			ctor_func->value= ctor_block;
 
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= clashPrevention() + "self";
+			self_id->name= selfName();
 
 			auto self_var= context.newNode<VarDeclNode>();
 			self_var->valueType= block.boundTo;
@@ -565,7 +567,6 @@ private:
 			for (auto&& node : block_scope.cleanup) {
 				dtor_block->nodes.emplace_back(node); // Dtors of members
 			}
-			
 
 			globalInsertRequests.emplace_back(
 					context.newNode<EndStatementNode>());
@@ -588,6 +589,16 @@ private:
 			auto ptr_to_val= context.newNode<UOpNode>();
 			ptr_to_val->opType= UOpType::addrOf;
 			ptr_to_val->target= var.identifier;
+			if (scope.type == ScopeType::structure) {
+				auto self_id= context.newNode<IdentifierNode>();
+				self_id->name= selfName();
+
+				auto access_op= context.newNode<BiOpNode>();
+				access_op->opType= BiOpType::rightArrow;
+				access_op->lhs= self_id;
+				access_op->rhs= var.identifier;
+				ptr_to_val->target= access_op;
+			}
 
 			auto block_bound_id= static_cast<BlockNode&>(traced_type).boundTo;
 			auto type_name=
@@ -595,6 +606,7 @@ private:
 
 			auto dtor_call_id= context.newNode<IdentifierNode>();
 			dtor_call_id->name= dtorName(type_name);
+
 
 			auto dtor_call= context.newNode<CallNode>();
 			dtor_call->func= dtor_call_id;
