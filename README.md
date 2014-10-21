@@ -14,6 +14,5 @@ Prototyping some language ideas for games. See plans directory for more info
 Compiler will output `temp.c` and use gcc to compile it to a binary named `out`
 
 ###TODO
-- compiler: proper name lookup
 - compiler: proper error messaging system
 - ast examining tool
