@@ -535,7 +535,7 @@ private:
 			dtor_func->value= dtor_block;
 
 			auto self_id= context.newNode<IdentifierNode>();
-			self_id->name= clashPrevention() + "self";
+			self_id->name= selfName();
 
 			auto ptr_to_self= context.newNode<UOpNode>();
 			ptr_to_self->opType= UOpType::pointer;
