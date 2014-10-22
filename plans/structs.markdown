@@ -24,8 +24,6 @@ The last row shows how struct can be instantiated by calling the implicit constr
 
 		if (id % 100 == 0)
 			special = true;
-
-		/// @todo Destructor syntax
 	};
 
 	var obj := Object(); // Creates `empty`
