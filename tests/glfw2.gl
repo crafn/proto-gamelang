@@ -1,9 +1,10 @@
-// Compiling: ./compiler ./tests/glfw2.gl -lglfw -lGL
+// Compiling: ./compiler ./tests/glfw2.gl -lglfw -lGL -lm
 
 // GLFW
 let GLFW_WINDOW := 0x00010001;
 let GLFW_KEY_A := 65;
 let GLFW_KEY_D := 68;
+let GLFW_MOUSE_LEFT := 0;
 extern {
 	let glfwInit: fn() -> int;
 	let glfwTerminate: fn();
@@ -13,6 +14,8 @@ extern {
 	let glfwSwapBuffers: fn();
 	let glfwSleep: fn(seconds: f32);
 	let glfwGetKey: fn(key: int) -> int;
+	let glfwGetMousePos: fn(x: ?int, y: ?int);
+	let glfwGetMouseButton: fn(btn: int) -> int;
 }
 
 // OpenGL
@@ -33,6 +36,7 @@ extern {
 	/// @todo i64 -> size_t
 	let malloc: fn(size: i64) -> ?void;
 	let free: fn(ptr: ?void);
+	let sqrt: fn(v: f64) -> f64;
 }
 
 let Vec2 := tpl[V: struct] -> struct
@@ -59,7 +63,7 @@ let push := tpl[U: struct] -> fn(vec: ^Array[U], elem: U)
 	var i := 0;
 	loop {
 		if (i >= vec->size)
-			{ break; }
+		{ break; }
 		new_data[i]= vec->data[i];
 		i += 1;
 	}
@@ -82,19 +86,101 @@ let drawQuad := fn(pos: Vec2f, rad: Vec2f)
 	glEnd();
 };
 
+let SnakeBit := struct
+{
+	var pos := Vec2f();
+	var vel := Vec2f();
+};
+
 let GameState := struct
 {
 	var playerPos := Vec2f(0.0, 0.0);
+	var snake := Array[SnakeBit]();
 };
+
+let create := fn(game: ^GameState)
+{
+	let bitCount := 30;
+
+	/// @todo For-loop
+	var i := 0;
+	loop {
+		if (i >= bitCount)
+		 { break; }
+		var p := Vec2f(i/10.0, i/20.0);
+		'game->snake.>push(SnakeBit(.pos= p));
+		i += 1;
+	}
+}
 
 let update := fn(game: ^GameState)
 {
-	let spd := 0.03;
+	/// @todo Type deduction
+	let dt : f32 = 1.0/60.0;
+	let spd= 1.0;
 	if (glfwGetKey(GLFW_KEY_A))
-	{ game->playerPos.x -= spd; }
+	{ game->playerPos.x -= spd*dt; }
 
 	if (glfwGetKey(GLFW_KEY_D))
-	{ game->playerPos.x += spd; }
+	{ game->playerPos.x += spd*dt; }
+
+	var mx: int;
+	var my: int;
+	glfwGetMousePos('mx, 'my);
+
+	if (glfwGetMouseButton(GLFW_MOUSE_LEFT)) {
+		var mp := Vec2f(mx/150.0/2.0 - 1.0, (0-1)*my/150.0/2.0 + 1.0);
+		game->playerPos = mp;
+		if (game->playerPos.x < 0-1)
+		{ game->playerPos.x = 0-1; }
+		if (game->playerPos.y > 1)
+		{ game->playerPos.y = 1; }
+	}
+
+	var prev_p := game->playerPos;
+	/// @todo For-loop
+	var i := 0;
+	loop {
+		if (i >= game->snake.size)
+		{ break; }
+
+		/// @todo Fix name lookup with array access: game->snake.data[i]->pos
+		/// @todo Operator [] overloading game->snake[i]
+		/// @todo Unable to trace type from (ptr + i)->member;
+		var bit : ^SnakeBit = 'game->snake.data[i];
+
+		/// @todo +-*/ overloading
+		var p : Vec2f = bit->pos;
+		var v : Vec2f = bit->vel;
+		var dif := Vec2f(p.x - prev_p.x, p.y - prev_p.y);
+
+		/// @todo Prefix -
+		var mag : f32 = sqrt(dif.x*dif.x + dif.y*dif.y)*(0-1000);
+		var a := Vec2f(dif.x*mag, dif.y*mag);
+		
+		v.x += a.x*dt;
+		v.y += (a.y - 9.0)*dt;
+
+		var drag : f32 = (v.x*v.x + v.y*v.y)*0.02;
+		if (drag > 0.5)
+		{ drag= 0.5; }
+
+		v.x -= v.x*drag;
+		v.y -= v.y*drag;
+
+		// Damping
+		v.x *= 0.99;
+		v.y *= 0.99;
+
+		p.x += v.x*dt;
+		p.y += v.y*dt;
+
+		bit->pos = p;
+		bit->vel = v;
+		prev_p = p;
+
+		i += 1;
+	}
 };
 
 let render := fn(game: ^GameState)
@@ -103,8 +189,18 @@ let render := fn(game: ^GameState)
 	glClear(GL_COLOR_BUFFER_BIT);
 	glLoadIdentity();
 
-	drawQuad(game->playerPos, Vec2f(0.1, 0.1));
+	drawQuad(game->playerPos, Vec2f(0.05, 0.05));
 
+	var i := 0;
+	loop {
+		if (i >= game->snake.size)
+		{ break; }
+
+		var bit : ^SnakeBit = 'game->snake.data[i];
+		drawQuad(bit->pos, Vec2f(0.02, 0.02));
+
+		i += 1;
+	}
 	glfwSwapBuffers();
 };
 
@@ -117,11 +213,12 @@ let main := fn() -> int
 	glfwSetWindowTitle("gamelang");
 
 	var game := GameState();
+	'game.>create();
 	loop {
 		'game.>update();
 		'game.>render();
 		glfwSleep(0.001);
-	};
+	}
 
 	glfwTerminate();
 	return 0;
